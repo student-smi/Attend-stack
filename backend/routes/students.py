@@ -103,13 +103,30 @@ def change_student_password(
     student = crud.get_by_id(db, student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
-    if not student.user_id:
-        raise HTTPException(status_code=400, detail="This student has no login account")
-    user = db.query(User).filter(User.id == student.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Login account not found")
+
     if not body.new_password or len(body.new_password.strip()) < 4:
         raise HTTPException(status_code=400, detail="Password must be at least 4 characters")
-    user.password = hash_password(body.new_password.strip())
+
+    new_pass_hashed = hash_password(body.new_password.strip())
+
+    user = db.query(User).filter(User.id == student.user_id).first() if student.user_id else None
+    if not user:
+        if not student.email:
+            raise HTTPException(status_code=400, detail="Student has no email to create a login account")
+        # Auto-create user account if missing
+        user = User(
+            email=student.email,
+            password=new_pass_hashed,
+            role="student",
+            is_active=True
+        )
+        db.add(user)
+        db.flush()
+        student.user_id = user.id
+        db.commit()
+        return {"message": "Login account created and password set successfully", "email": user.email}
+
+    user.password = new_pass_hashed
     db.commit()
     return {"message": "Password updated successfully", "email": user.email}
+

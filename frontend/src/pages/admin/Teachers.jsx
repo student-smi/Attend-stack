@@ -101,6 +101,9 @@ export default function Teachers() {
     try {
       if (editing) {
         await api.put(`/teachers/${editing.id}`, payload)
+        if (form.password && form.password.trim()) {
+          await api.patch(`/teachers/${editing.id}/change-password`, { new_password: form.password.trim() })
+        }
         closeModal(); load()
       } else {
         const res = await api.post('/teachers/', payload)
@@ -201,13 +204,11 @@ export default function Teachers() {
                       <td className="px-4 py-3 text-right">
                         <div className="flex justify-end gap-2">
                           <button className="btn-secondary text-xs px-3 py-1" onClick={() => openEdit(t)}>Edit</button>
-                          {t.user_id && (
-                            <button
-                              title="Change Password"
-                              className="text-xs px-3 py-1 rounded-lg font-semibold border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
-                              onClick={() => openPwdModal(t)}
-                            >🔑 Password</button>
-                          )}
+                          <button
+                            title="Change Password"
+                            className="text-xs px-3 py-1 rounded-lg font-semibold border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                            onClick={() => openPwdModal(t)}
+                          >🔑 Password</button>
                           <button className="btn-danger text-xs px-3 py-1" onClick={() => handleDelete(t.id)}>Delete</button>
                         </div>
                       </td>
@@ -233,13 +234,11 @@ export default function Teachers() {
                     </div>
                     <div className="flex gap-1.5 flex-shrink-0">
                       <button className="btn-secondary text-xs px-2.5 py-1" onClick={() => openEdit(t)}>Edit</button>
-                      {t.user_id && (
-                        <button
-                          title="Change Password"
-                          className="text-xs px-2.5 py-1 rounded-lg font-semibold border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
-                          onClick={() => openPwdModal(t)}
-                        >🔑</button>
-                      )}
+                      <button
+                        title="Change Password"
+                        className="text-xs px-2.5 py-1 rounded-lg font-semibold border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                        onClick={() => openPwdModal(t)}
+                      >🔑</button>
                       <button className="btn-danger text-xs px-2.5 py-1" onClick={() => handleDelete(t.id)}>Del</button>
                     </div>
                   </div>
@@ -312,12 +311,18 @@ export default function Teachers() {
                 value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
             </div>
           </div>
-          {!editing && (
+          {!editing ? (
             <div>
               <label className="label">Login Password</label>
               <input className="input" type="text" placeholder="Leave blank — auto generated"
                 value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
               <p className="text-xs text-slate-400 mt-1">Required only if email is provided.</p>
+            </div>
+          ) : (
+            <div>
+              <label className="label">New Password (Optional)</label>
+              <input className="input" type="password" placeholder="Leave blank to keep current password"
+                value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
             </div>
           )}
           <div>

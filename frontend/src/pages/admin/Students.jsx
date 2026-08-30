@@ -104,6 +104,9 @@ export default function Students() {
     try {
       if (editing) {
         await api.put(`/students/${editing.id}`, payload)
+        if (form.password && form.password.trim()) {
+          await api.patch(`/students/${editing.id}/change-password`, { new_password: form.password.trim() })
+        }
         closeModal(); load()
       } else {
         const res = await api.post('/students/', payload)
@@ -332,10 +335,16 @@ export default function Students() {
             </FormField>
           </div>
 
-          {!editing && (
+          {!editing ? (
             <FormField label="Login Password" hint="Leave blank to use Student ID as password">
-              <input className="input" type="text" value={form.password}
+              <input className="input" type="text" value={form.password || ''}
                 placeholder="Leave blank to use Student ID"
+                onChange={e => setForm({ ...form, password: e.target.value })} />
+            </FormField>
+          ) : (
+            <FormField label="New Password (Optional)" hint="Leave blank to keep existing password">
+              <input className="input" type="password" value={form.password || ''}
+                placeholder="Enter new password to update"
                 onChange={e => setForm({ ...form, password: e.target.value })} />
             </FormField>
           )}

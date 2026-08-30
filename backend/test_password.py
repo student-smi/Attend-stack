@@ -170,26 +170,29 @@ app.dependency_overrides[get_db] = override_get_db
 _ADMIN_ID = str(uuid.uuid4())
 
 
-def _seed_admin():
+def _seed_admin() -> str:
     db = TestingSessionLocal()
     try:
-        existing = db.query(User).filter(User.id == _ADMIN_ID).first()
-        if not existing:
-            db.add(User(
-                id=_ADMIN_ID,
+        admin = db.query(User).filter(User.email == "admin@test.com").first()
+        if not admin:
+            admin = User(
+                id=str(uuid.uuid4()),
                 email="admin@test.com",
                 password=hash_password("admin123"),
                 role="admin",
                 is_active=True,
-            ))
+            )
+            db.add(admin)
             db.commit()
+            db.refresh(admin)
+        return str(admin.id)
     finally:
         db.close()
 
 
 def _admin_token() -> str:
-    _seed_admin()
-    return create_access_token({"sub": _ADMIN_ID, "role": "admin"})
+    admin_id = _seed_admin()
+    return create_access_token({"sub": admin_id, "role": "admin"})
 
 
 def _make_student(db):

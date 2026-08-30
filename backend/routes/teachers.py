@@ -102,13 +102,29 @@ def change_teacher_password(
     teacher = crud.get_by_id(db, teacher_id)
     if not teacher:
         raise HTTPException(status_code=404, detail="Teacher not found")
-    if not teacher.user_id:
-        raise HTTPException(status_code=400, detail="This teacher has no login account")
-    user = db.query(User).filter(User.id == teacher.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Login account not found")
+
     if not body.new_password or len(body.new_password.strip()) < 4:
         raise HTTPException(status_code=400, detail="Password must be at least 4 characters")
-    user.password = hash_password(body.new_password.strip())
+
+    new_pass_hashed = hash_password(body.new_password.strip())
+
+    user = db.query(User).filter(User.id == teacher.user_id).first() if teacher.user_id else None
+    if not user:
+        if not teacher.email:
+            raise HTTPException(status_code=400, detail="Teacher has no email address to create a login account")
+        user = User(
+            email=teacher.email,
+            password=new_pass_hashed,
+            role="teacher",
+            is_active=True
+        )
+        db.add(user)
+        db.flush()
+        teacher.user_id = user.id
+        db.commit()
+        return {"message": "Login account created and password set successfully", "email": user.email}
+
+    user.password = new_pass_hashed
     db.commit()
     return {"message": "Password updated successfully", "email": user.email}
+
