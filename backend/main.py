@@ -43,7 +43,10 @@ app.add_middleware(
 )
 
 # ── Auto create tables & seed admin ───────────────────────────
-Base.metadata.create_all(bind=engine)
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    print("Warning: Could not create tables:", e)
 
 @app.on_event("startup")
 def seed_admin_user():

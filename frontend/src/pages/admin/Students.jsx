@@ -23,6 +23,46 @@ export default function Students() {
   const [page, setPage]               = useState(1)
   const [credentials, setCredentials] = useState(null)
 
+  // Password change
+  const [pwdModal, setPwdModal]     = useState(false)
+  const [pwdTarget, setPwdTarget]   = useState(null)   // selected student
+  const [newPwd, setNewPwd]         = useState('')
+  const [showPwd, setShowPwd]       = useState(false)
+  const [pwdError, setPwdError]     = useState('')
+  const [pwdSuccess, setPwdSuccess] = useState('')
+  const [pwdLoading, setPwdLoading] = useState(false)
+
+  const openPwdModal = (student) => {
+    setPwdTarget(student)
+    setNewPwd('')
+    setShowPwd(false)
+    setPwdError('')
+    setPwdSuccess('')
+    setPwdModal(true)
+  }
+  const closePwdModal = () => { setPwdModal(false); setPwdTarget(null) }
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault()
+    setPwdError('')
+    setPwdSuccess('')
+    if (!newPwd || newPwd.trim().length < 4) {
+      setPwdError('Password must be at least 4 characters.')
+      return
+    }
+    setPwdLoading(true)
+    try {
+      await api.patch(`/students/${pwdTarget.id}/change-password`, { new_password: newPwd.trim() })
+      setPwdSuccess(`✅ Password changed successfully for ${pwdTarget.name}!`)
+      setNewPwd('')
+    } catch (err) {
+      const detail = err.response?.data?.detail
+      setPwdError(detail || 'Failed to change password.')
+    } finally {
+      setPwdLoading(false)
+    }
+  }
+
   const load = async () => {
     const [s, c] = await Promise.all([
       api.get('/students/?limit=1000'),
@@ -193,6 +233,11 @@ export default function Students() {
           actions={(row) => (
             <>
               <button className="btn-secondary text-xs px-3 py-1" onClick={() => openEdit(row)}>Edit</button>
+              <button
+                title="Change Password"
+                className="text-xs px-3 py-1 rounded-lg font-semibold border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                onClick={() => openPwdModal(row)}
+              >🔑 Password</button>
               <button className="btn-danger text-xs px-3 py-1" onClick={() => handleDelete(row.id)}>Delete</button>
             </>
           )}
@@ -342,6 +387,53 @@ export default function Students() {
             Save these now — the password is shown only once.
           </p>
           <button className="btn-primary w-full" onClick={() => setCredentials(null)}>Got it</button>
+        </div>
+      </Modal>
+
+      {/* ── Password Change Modal ── */}
+      <Modal isOpen={pwdModal} onClose={closePwdModal} title="Change Login Password">
+        <div className="space-y-4">
+          {pwdTarget && (
+            <div className="bg-slate-50 rounded-xl px-4 py-3 text-sm">
+              <p className="text-slate-500 text-xs mb-1">Student</p>
+              <p className="font-semibold text-slate-800">{pwdTarget.name}</p>
+              <p className="text-slate-500 text-xs mt-0.5">{pwdTarget.email}</p>
+            </div>
+          )}
+
+          <form onSubmit={handlePasswordChange} className="space-y-3">
+            <div>
+              <label className="label">New Password</label>
+              <div className="relative">
+                <input
+                  className="input pr-12"
+                  type={showPwd ? 'text' : 'password'}
+                  placeholder="Min. 4 characters"
+                  value={newPwd}
+                  onChange={e => setNewPwd(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm"
+                >{showPwd ? '🙈 Hide' : '👁 Show'}</button>
+              </div>
+            </div>
+
+            {pwdError && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-600 text-sm">⚠ {pwdError}</div>
+            )}
+            {pwdSuccess && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-emerald-700 text-sm">{pwdSuccess}</div>
+            )}
+
+            <div className="flex gap-3 pt-1">
+              <button type="submit" className="btn-primary flex-1" disabled={pwdLoading}>
+                {pwdLoading ? 'Saving...' : '🔑 Change Password'}
+              </button>
+              <button type="button" className="btn-secondary" onClick={closePwdModal}>Cancel</button>
+            </div>
+          </form>
         </div>
       </Modal>
     </div>

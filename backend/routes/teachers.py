@@ -1,11 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+from pydantic import BaseModel
 from database import get_db
 from schemas.teacher import TeacherCreate, TeacherUpdate, TeacherOut, TeacherCreatedOut
 from crud import teacher as crud
 from auth.dependencies import require_admin, get_current_user
+from auth.password import hash_password
 from models.user import User
+
+
+class PasswordChange(BaseModel):
+    new_password: str
 
 router = APIRouter(prefix="/teachers", tags=["Teachers"])
 
@@ -83,3 +89,26 @@ def delete_teacher(
     success = crud.delete(db, teacher_id)
     if not success:
         raise HTTPException(status_code=404, detail="Teacher not found")
+
+
+@router.patch("/{teacher_id}/change-password", tags=["Teachers"])
+def change_teacher_password(
+    teacher_id: str,
+    body: PasswordChange,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin)
+):
+    """Change a teacher's login password (Admin only)."""
+    teacher = crud.get_by_id(db, teacher_id)
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+    if not teacher.user_id:
+        raise HTTPException(status_code=400, detail="This teacher has no login account")
+    user = db.query(User).filter(User.id == teacher.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Login account not found")
+    if not body.new_password or len(body.new_password.strip()) < 4:
+        raise HTTPException(status_code=400, detail="Password must be at least 4 characters")
+    user.password = hash_password(body.new_password.strip())
+    db.commit()
+    return {"message": "Password updated successfully", "email": user.email}
