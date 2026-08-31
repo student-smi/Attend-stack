@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import api from '../../api/axios'
 import Modal from '../../components/Modal'
+import { FormField, fieldClass, validators, validate } from '../../components/FormField'
 
 const EMPTY = { name: '', code: '', description: '' }
 
@@ -23,7 +24,8 @@ export default function Subjects() {
   const [modal, setModal]       = useState(false)
   const [editing, setEditing]   = useState(null)
   const [form, setForm]         = useState(EMPTY)
-  const [error, setError]       = useState('')
+  const [error, setError]           = useState('')
+  const [formErrors, setFormErrors] = useState({})
   const [loading, setLoading]   = useState(true)
 
   const load = async () => {
@@ -38,12 +40,17 @@ export default function Subjects() {
 
   useEffect(() => { load() }, [])
 
-  const openAdd  = () => { setEditing(null); setForm(EMPTY); setError(''); setModal(true) }
-  const openEdit = (s) => { setEditing(s); setForm({ ...EMPTY, ...s }); setError(''); setModal(true) }
-  const closeModal = () => { setModal(false); setEditing(null) }
+  const openAdd  = () => { setEditing(null); setForm(EMPTY); setError(''); setFormErrors({}); setModal(true) }
+  const openEdit = (s) => { setEditing(s); setForm({ ...EMPTY, ...s }); setError(''); setFormErrors({}); setModal(true) }
+  const closeModal = () => { setModal(false); setEditing(null); setFormErrors({}) }
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setError('')
+    const errs = validate({
+      name: [validators.required(form.name, 'Subject Name')],
+    })
+    if (Object.keys(errs).length > 0) { setFormErrors(errs); return }
+    setFormErrors({})
     const payload = {
       name:        form.name,
       code:        form.code        || null,
@@ -149,42 +156,23 @@ export default function Subjects() {
         )}
       </div>
 
-      {/* Add / Edit Modal */}
       <Modal isOpen={modal} onClose={closeModal} title={editing ? 'Edit Subject' : 'Add Subject'}>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="label">Subject Name *</label>
-            <input
-              className="input" required
-              placeholder="e.g. Mathematics"
-              value={form.name}
-              onChange={e => setForm({ ...form, name: e.target.value })}
-            />
-          </div>
-
-          <div>
-            <label className="label">Subject Code</label>
-            <input
-              className="input"
-              placeholder="e.g. MATH101"
-              value={form.code}
-              onChange={e => setForm({ ...form, code: e.target.value })}
-            />
-            <p className="text-xs text-gray-400 mt-1">Optional — must be unique</p>
-          </div>
-
-          <div>
-            <label className="label">Description</label>
-            <textarea
-              className="input" rows={3}
-              placeholder="Brief description of the subject..."
-              value={form.description}
-              onChange={e => setForm({ ...form, description: e.target.value })}
-            />
-          </div>
-
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-
+          <FormField label="Subject Name" required error={formErrors.name}>
+            <input className={fieldClass(formErrors.name)} placeholder="e.g. Mathematics"
+              value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+          </FormField>
+          <FormField label="Subject Code" hint="Optional — must be unique">
+            <input className="input" placeholder="e.g. MATH101"
+              value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} />
+          </FormField>
+          <FormField label="Description">
+            <textarea className="input" rows={3} placeholder="Brief description of the subject..."
+              value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+          </FormField>
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-600 text-sm">⚠ {error}</div>
+          )}
           <div className="flex gap-3 pt-2">
             <button type="submit" className="btn-primary flex-1">
               {editing ? 'Save Changes' : 'Add Subject'}

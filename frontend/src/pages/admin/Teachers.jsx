@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import api from '../../api/axios'
 import Modal from '../../components/Modal'
+import { FormField, fieldClass, validators, validate } from '../../components/FormField'
 
 const EMPTY = {
   name: '', email: '', phone: '', qualification: '',
@@ -17,6 +18,7 @@ export default function Teachers() {
   const [editing, setEditing]         = useState(null)
   const [form, setForm]               = useState(EMPTY)
   const [error, setError]             = useState('')
+  const [formErrors, setFormErrors]   = useState({})
   const [loading, setLoading]         = useState(true)
   const [credentials, setCredentials] = useState(null)
   const [page, setPage]               = useState(1)
@@ -77,17 +79,24 @@ export default function Teachers() {
 
   useEffect(() => { load() }, [])
 
-  const openAdd  = () => { setEditing(null); setForm(EMPTY); setError(''); setModal(true) }
+  const openAdd  = () => { setEditing(null); setForm(EMPTY); setError(''); setFormErrors({}); setModal(true) }
   const openEdit = (t) => {
     setEditing(t)
     setForm({ ...EMPTY, ...t, password: '', subject_id: t.subject_id || '' })
-    setError('')
+    setError(''); setFormErrors({})
     setModal(true)
   }
-  const closeModal = () => { setModal(false); setEditing(null) }
+  const closeModal = () => { setModal(false); setEditing(null); setFormErrors({}) }
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setError('')
+    const errs = validate({
+      name:  [validators.required(form.name, 'Full Name')],
+      email: form.email ? [validators.email(form.email)] : [],
+      phone: [validators.phone(form.phone)],
+    })
+    if (Object.keys(errs).length > 0) { setFormErrors(errs); return }
+    setFormErrors({})
     const payload = {
       name:           form.name,
       email:          form.email       || null,
@@ -291,42 +300,34 @@ export default function Teachers() {
         )}
       </div>
 
-      {/* Add/Edit Modal */}
       <Modal isOpen={modal} onClose={closeModal} title={editing ? 'Edit Teacher' : 'Add Teacher'}>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="label">Full Name *</label>
-            <input className="input" required placeholder="e.g. Ramesh Patel"
+          <FormField label="Full Name" required error={formErrors.name}>
+            <input className={fieldClass(formErrors.name)} placeholder="e.g. Ramesh Patel"
               value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-          </div>
+          </FormField>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="label">Email</label>
-              <input className="input" type="email" placeholder="teacher@school.com"
+            <FormField label="Email" error={formErrors.email}>
+              <input className={fieldClass(formErrors.email)} type="email" placeholder="teacher@school.com"
                 value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-            </div>
-            <div>
-              <label className="label">Phone</label>
-              <input className="input" placeholder="9876543210"
+            </FormField>
+            <FormField label="Phone" error={formErrors.phone} hint="10-digit number">
+              <input className={fieldClass(formErrors.phone)} placeholder="9876543210"
                 value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
-            </div>
+            </FormField>
           </div>
           {!editing ? (
-            <div>
-              <label className="label">Login Password</label>
+            <FormField label="Login Password" hint="Required only if email is provided. Leave blank for auto password.">
               <input className="input" type="text" placeholder="Leave blank — auto generated"
                 value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
-              <p className="text-xs text-slate-400 mt-1">Required only if email is provided.</p>
-            </div>
+            </FormField>
           ) : (
-            <div>
-              <label className="label">New Password (Optional)</label>
-              <input className="input" type="password" placeholder="Leave blank to keep current password"
+            <FormField label="New Password (Optional)" hint="Leave blank to keep current password">
+              <input className="input" type="password" placeholder="Leave blank to keep current"
                 value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
-            </div>
+            </FormField>
           )}
-          <div>
-            <label className="label">Assign Subject</label>
+          <FormField label="Assign Subject">
             <select className="input" value={form.subject_id}
               onChange={e => setForm({ ...form, subject_id: e.target.value })}>
               <option value="">— No subject assigned —</option>
@@ -334,23 +335,23 @@ export default function Teachers() {
                 <option key={s.id} value={s.id}>{s.name}{s.code ? ` (${s.code})` : ''}</option>
               ))}
             </select>
-          </div>
+          </FormField>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="label">Gender</label>
+            <FormField label="Gender">
               <select className="input" value={form.gender}
                 onChange={e => setForm({ ...form, gender: e.target.value })}>
                 <option value="">Select</option>
                 <option>Male</option><option>Female</option><option>Other</option>
               </select>
-            </div>
-            <div>
-              <label className="label">Address</label>
+            </FormField>
+            <FormField label="Address">
               <input className="input" placeholder="Optional"
                 value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
-            </div>
+            </FormField>
           </div>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-600 text-sm">⚠ {error}</div>
+          )}
           <div className="flex gap-3 pt-2">
             <button type="submit" className="btn-primary flex-1">{editing ? 'Save Changes' : 'Add Teacher'}</button>
             <button type="button" className="btn-secondary" onClick={closeModal}>Cancel</button>

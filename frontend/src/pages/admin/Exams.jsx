@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import api from '../../api/axios'
+import { FormField, fieldClass, validators, validate } from '../../components/FormField'
 
 const EMPTY = { name: '', subject: '', exam_date: '', max_marks: 100 }
 
@@ -12,6 +13,7 @@ export default function Exams() {
   // Add exam form
   const [form, setForm]             = useState(EMPTY)
   const [formError, setFormError]   = useState('')
+  const [formErrors, setFormErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
   const [submitMsg, setSubmitMsg]   = useState('')
 
@@ -47,6 +49,15 @@ export default function Exams() {
   const handleAddExam = async (e) => {
     e.preventDefault()
     setFormError(''); setSubmitMsg('')
+
+    const errs = validate({
+      name:      [validators.required(form.name, 'Exam Name')],
+      subject:   [validators.required(form.subject, 'Subject')],
+      exam_date: [validators.required(form.exam_date, 'Exam Date')],
+      max_marks: [!form.max_marks || form.max_marks < 1 ? 'Max Marks must be at least 1' : null],
+    })
+    if (Object.keys(errs).length > 0) { setFormErrors(errs); return }
+    setFormErrors({})
     setSubmitting(true)
     try {
       await api.post('/exams/', {
@@ -135,57 +146,29 @@ export default function Exams() {
           </h2>
           <form onSubmit={handleAddExam} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="label">Exam Name *</label>
-                <input
-                  className="input"
-                  required
-                  placeholder="Mid-Term Exam"
-                  value={form.name}
-                  onChange={e => setForm({ ...form, name: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="label">Subject *</label>
-                <input
-                  className="input"
-                  required
-                  placeholder="Mathematics"
-                  value={form.subject}
-                  onChange={e => setForm({ ...form, subject: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="label">Exam Date *</label>
-                <input
-                  className="input"
-                  type="date"
-                  required
-                  value={form.exam_date}
-                  onChange={e => setForm({ ...form, exam_date: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="label">Max Marks *</label>
-                <input
-                  className="input"
-                  type="number"
-                  min="1"
-                  required
-                  value={form.max_marks}
-                  onChange={e => setForm({ ...form, max_marks: e.target.value })}
-                />
-              </div>
+              <FormField label="Exam Name" required error={formErrors.name}>
+                <input className={fieldClass(formErrors.name)} placeholder="Mid-Term Exam"
+                  value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+              </FormField>
+              <FormField label="Subject" required error={formErrors.subject}>
+                <input className={fieldClass(formErrors.subject)} placeholder="Mathematics"
+                  value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} />
+              </FormField>
+              <FormField label="Exam Date" required error={formErrors.exam_date}>
+                <input className={fieldClass(formErrors.exam_date)} type="date"
+                  value={form.exam_date} onChange={e => setForm({ ...form, exam_date: e.target.value })} />
+              </FormField>
+              <FormField label="Max Marks" required error={formErrors.max_marks}>
+                <input className={fieldClass(formErrors.max_marks)} type="number" min="1"
+                  value={form.max_marks} onChange={e => setForm({ ...form, max_marks: e.target.value })} />
+              </FormField>
             </div>
-
-            {formError && <p className="text-red-500 text-sm">{formError}</p>}
+            {formError && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-600 text-sm">⚠ {formError}</div>
+            )}
             {submitMsg && <p className="text-emerald-600 text-sm font-medium">{submitMsg}</p>}
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="btn-primary disabled:opacity-60 disabled:cursor-not-allowed"
-            >
+            <button type="submit" disabled={submitting}
+              className="btn-primary disabled:opacity-60 disabled:cursor-not-allowed">
               {submitting ? 'Adding...' : '+ Add Exam'}
             </button>
           </form>
