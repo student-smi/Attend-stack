@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from database import get_db
 from schemas.student import StudentCreate, StudentUpdate, StudentOut, StudentCreatedOut
 from crud import student as crud
-from auth.dependencies import require_admin, get_current_user
+from auth.dependencies import require_admin, get_current_user, require_teacher_or_admin
 from auth.password import hash_password
 from models.user import User
 
@@ -21,9 +21,9 @@ def list_students(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin)
+    _: User = Depends(require_teacher_or_admin)
 ):
-    """List all students (Admin only)."""
+    """List all students (Teacher or Admin)."""
     return crud.get_all(db, skip=skip, limit=limit)
 
 
@@ -43,7 +43,7 @@ def get_my_profile(
 def get_student(
     student_id: str,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin)
+    _: User = Depends(require_teacher_or_admin)
 ):
     """Get a student by ID (Admin only)."""
     student = crud.get_by_id(db, student_id)

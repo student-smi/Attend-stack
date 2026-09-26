@@ -5,7 +5,7 @@ from database import get_db
 from schemas.exam import ExamCreate, ExamUpdate, ExamOut
 from crud import exam as crud
 from crud import student as student_crud
-from auth.dependencies import require_admin, get_current_user
+from auth.dependencies import require_admin, get_current_user, require_teacher_or_admin
 from models.user import User
 
 router = APIRouter(prefix="/exams", tags=["Exams"])
@@ -49,7 +49,7 @@ def get_exam(
 def create_exam(
     data: ExamCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin)
+    _: User = Depends(require_teacher_or_admin)
 ):
     return crud.create(db, data)
 
@@ -59,7 +59,7 @@ def update_exam(
     exam_id: str,
     data: ExamUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin)
+    _: User = Depends(require_teacher_or_admin)
 ):
     obj = crud.update(db, exam_id, data)
     if not obj:

@@ -26,8 +26,14 @@ const studentLinks = [
 ]
 
 const teacherLinks = [
-  { to: '/teacher',            label: 'Dashboard',  icon: '🏠' },
-  { to: '/teacher/timetable',  label: 'Timetable',  icon: '🗓️' },
+  { to: '/teacher',                  label: 'Dashboard',         icon: '🏠' },
+  { to: '/teacher?tab=schedule',    label: 'Aaj Ki Classes',    icon: '📅' },
+  { to: '/teacher?tab=attendance',  label: 'Take Attendance',   icon: '📝' },
+  { to: '/teacher?tab=marks',       label: 'Test Marks Entry',  icon: '🎯' },
+  { to: '/teacher?tab=diary',       label: 'Daily Homework',    icon: '📖' },
+  { to: '/teacher?tab=alerts',      label: 'Weak Students',     icon: '⚠️' },
+  { to: '/teacher?tab=payouts',     label: 'Lecture Counter',   icon: '💼' },
+  { to: '/teacher/timetable',       label: 'Full Timetable',    icon: '🗓️' },
 ]
 
 export default function Sidebar() {
@@ -39,7 +45,7 @@ export default function Sidebar() {
   const links = isAdmin ? adminLinks : user?.role === 'teacher' ? teacherLinks : studentLinks
 
   // Close sidebar on route change (mobile)
-  useEffect(() => { setOpen(false) }, [location.pathname])
+  useEffect(() => { setOpen(false) }, [location.pathname, location.search])
 
   // Prevent body scroll when sidebar open on mobile
   useEffect(() => {
@@ -50,6 +56,17 @@ export default function Sidebar() {
   const handleLogout = () => {
     logout()
     navigate('/login')
+  }
+
+  const isLinkActive = (to) => {
+    if (to === '/teacher') {
+      return location.pathname === '/teacher' && (!location.search || location.search === '?tab=overview')
+    }
+    if (to.includes('?tab=')) {
+      const tabParam = to.slice(to.indexOf('?tab='))
+      return location.pathname === '/teacher' && location.search === tabParam
+    }
+    return location.pathname === to
   }
 
   const SidebarContent = () => (
@@ -75,24 +92,24 @@ export default function Sidebar() {
 
       {/* Nav Links */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {links.map(({ to, label, icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/admin' || to === '/student' || to === '/teacher'}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
-               transition-all duration-200
-               ${isActive
-                 ? 'bg-primary-600 text-white shadow-md'
-                 : 'text-slate-400 hover:bg-dark-800 hover:text-white'
-               }`
-            }
-          >
-            <span className="text-base w-5 text-center flex-shrink-0">{icon}</span>
-            <span>{label}</span>
-          </NavLink>
-        ))}
+        {links.map(({ to, label, icon }) => {
+          const active = isLinkActive(to)
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
+                 transition-all duration-200
+                 ${active
+                   ? 'bg-primary-600 text-white shadow-md'
+                   : 'text-slate-400 hover:bg-dark-800 hover:text-white'
+                 }`}
+            >
+              <span className="text-base w-5 text-center flex-shrink-0">{icon}</span>
+              <span>{label}</span>
+            </NavLink>
+          )
+        })}
       </nav>
 
       {/* User info + Logout */}

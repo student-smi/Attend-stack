@@ -8,3 +8,5 @@ from .fee import FeePayment
 from .teacher import Teacher
 from .subject import Subject
 from .timetable import TimetableEntry
+from .diary import ClassDiary
+

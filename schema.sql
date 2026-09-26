@@ -143,6 +143,28 @@ CREATE INDEX idx_results_exam_id    ON results(exam_id);
 
 
 -- ============================================================
+-- TABLE 7: class_diary
+-- Stores daily homework and class diary
+-- ============================================================
+CREATE TABLE IF NOT EXISTS class_diary (
+    id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    class_id       UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    subject_id     UUID REFERENCES subjects(id) ON DELETE SET NULL,
+    teacher_id     UUID REFERENCES teachers(id) ON DELETE SET NULL,
+    date           DATE NOT NULL,
+    topics_covered TEXT NOT NULL,
+    homework       TEXT,
+    due_date       DATE,
+    created_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_class_diary_class_id ON class_diary(class_id);
+CREATE INDEX idx_class_diary_date     ON class_diary(date);
+
+
+
+-- ============================================================
 -- AUTO-UPDATE updated_at TRIGGER
 -- ============================================================
 CREATE OR REPLACE FUNCTION update_updated_at_column()

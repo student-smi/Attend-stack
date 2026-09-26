@@ -5,7 +5,7 @@ from database import get_db
 from schemas.result import ResultCreate, ResultUpdate, ResultOut, BulkResultCreate
 from crud import result as crud
 from crud import student as student_crud
-from auth.dependencies import require_admin, get_current_user
+from auth.dependencies import require_admin, get_current_user, require_teacher_or_admin
 from models.user import User
 
 router = APIRouter(prefix="/results", tags=["Results"])
@@ -15,9 +15,9 @@ router = APIRouter(prefix="/results", tags=["Results"])
 def bulk_create_results(
     data: BulkResultCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin)
+    _: User = Depends(require_teacher_or_admin)
 ):
-    """Submit results for all students in an exam at once (Admin only)."""
+    """Submit results for all students in an exam at once (Teacher or Admin)."""
     return crud.bulk_create(db, data)
 
 
@@ -25,9 +25,9 @@ def bulk_create_results(
 def get_exam_results(
     exam_id: str,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin)
+    _: User = Depends(require_teacher_or_admin)
 ):
-    """Get all results for a specific exam (Admin only)."""
+    """Get all results for a specific exam (Teacher or Admin)."""
     return crud.get_by_exam(db, exam_id)
 
 
@@ -36,7 +36,7 @@ def list_results(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin)
+    _: User = Depends(require_teacher_or_admin)
 ):
     return crud.get_all(db, skip=skip, limit=limit)
 

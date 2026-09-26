@@ -22,6 +22,8 @@ from routes.fees       import router as fees_router
 from routes.teachers   import router as teachers_router
 from routes.subjects    import router as subjects_router
 from routes.timetables  import router as timetables_router
+from routes.diary       import router as diary_router
+
 
 # ── App Init ──────────────────────────────────────────────────
 app = FastAPI(
@@ -80,6 +82,8 @@ app.include_router(fees_router)
 app.include_router(teachers_router)
 app.include_router(subjects_router)
 app.include_router(timetables_router)
+app.include_router(diary_router)
+
 
 
 # ── Health Check ──────────────────────────────────────────────

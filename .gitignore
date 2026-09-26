@@ -26,3 +26,12 @@ Thumbs.db
 *.njsproj
 *.sln
 *.swp
+.vite/
+.wrangler/
+Frontend/.vite/
+Frontend/frontend/
+Frontend/backend/
+Frontend/public/
+Frontend/README.md
+Frontend/schema.sql
+

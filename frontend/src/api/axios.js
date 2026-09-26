@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://school-management-system-2-twd5.onrender.com'
+const API_BASE = import.meta.env.VITE_API_URL || 'https://college-sms-api.college-api.workers.dev'
 
 const api = axios.create({
   baseURL: API_BASE,

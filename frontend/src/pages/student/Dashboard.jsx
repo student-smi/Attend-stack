@@ -3,22 +3,27 @@ import api from '../../api/axios'
 import StatCard from '../../components/StatCard'
 
 export default function StudentDashboard() {
-  const [profile, setProfile]     = useState(null)
+  const [profile, setProfile]       = useState(null)
   const [attendance, setAttendance] = useState([])
-  const [exams, setExams]         = useState([])
-  const [results, setResults]     = useState([])
-  const [loading, setLoading]     = useState(true)
+  const [exams, setExams]           = useState([])
+  const [results, setResults]       = useState([])
+  const [diaries, setDiaries]       = useState([])
+  const [loading, setLoading]       = useState(true)
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [p, a, e, r] = await Promise.all([
-          api.get('/students/me'),
-          api.get('/attendance/me'),
-          api.get('/exams/my'),
-          api.get('/results/me'),
+        const [p, a, e, r, d] = await Promise.all([
+          api.get('/students/me').catch(() => ({ data: null })),
+          api.get('/attendance/me').catch(() => ({ data: [] })),
+          api.get('/exams/my').catch(() => ({ data: [] })),
+          api.get('/results/me').catch(() => ({ data: [] })),
+          api.get('/diary/my').catch(() => {
+            const cached = localStorage.getItem('teacher_cached_diaries')
+            return { data: cached ? JSON.parse(cached) : [] }
+          }),
         ])
-        setProfile(p.data); setAttendance(a.data); setExams(e.data); setResults(r.data)
+        setProfile(p.data); setAttendance(a.data); setExams(e.data); setResults(r.data); setDiaries(Array.isArray(d.data) ? d.data : [])
       } catch (err) {
         console.error(err)
       } finally {
@@ -59,6 +64,62 @@ export default function StudentDashboard() {
           icon="🎓" gradient="bg-gradient-to-br from-amber-500 to-orange-600" />
       </div>
 
+      {/* 📖 Daily Homework & Class Diary (Aaj Kya Padhaya) */}
+      <div className="card p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-indigo-50/50 via-white to-white border border-indigo-100 shadow-sm space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-indigo-100/60">
+          <div className="flex items-center gap-2.5">
+            <span className="text-2xl">📖</span>
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-gray-900">
+                Daily Homework & Class Diary (आज क्या पढ़ाया)
+              </h2>
+              <p className="text-xs text-gray-500">
+                Teacher dwara post kiya gaya latest class work aur homework.
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700">
+            {diaries.length} Entries
+          </span>
+        </div>
+
+        {diaries.length === 0 ? (
+          <div className="text-center py-6 text-gray-400 space-y-1">
+            <p className="text-xs font-semibold text-gray-600">No homework or class diary posted yet for your class.</p>
+            <p className="text-[11px] text-gray-400">Check back after your daily lectures!</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {diaries.slice(0, 4).map(d => (
+              <div key={d.id} className="p-4 rounded-2xl bg-white border border-indigo-100 shadow-sm space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-primary-700 bg-primary-50 px-2 py-0.5 rounded-md">
+                    {d.subject_name || 'Subject'}
+                  </span>
+                  <span className="text-gray-400 font-medium">📅 {d.date}</span>
+                </div>
+                <div>
+                  <strong className="text-xs text-gray-900 block font-bold">Topics Covered:</strong>
+                  <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">{d.topics_covered}</p>
+                </div>
+                {d.homework && (
+                  <div className="pt-2 border-t border-gray-100">
+                    <strong className="text-xs text-amber-800 block font-bold">Homework Given:</strong>
+                    <p className="text-xs text-gray-700 mt-0.5 leading-relaxed">{d.homework}</p>
+                    {d.due_date && (
+                      <p className="text-[11px] text-amber-600 font-bold mt-1">⏰ Due Date: {d.due_date}</p>
+                    )}
+                  </div>
+                )}
+                {d.teacher_name && (
+                  <p className="text-[11px] text-gray-400 pt-1">Posted by: {d.teacher_name}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Profile card */}
         <div className="card">
@@ -89,7 +150,7 @@ export default function StudentDashboard() {
               {results.slice(0, 5).map(r => (
                 <div key={r.id} className="flex items-center justify-between text-sm
                                            p-2 rounded-lg hover:bg-gray-50">
-                  <span className="text-gray-600">{r.exam_id}</span>
+                  <span className="text-gray-600">{r.exam_name || r.exam_id}</span>
                   <span className="font-bold text-primary-600">{r.marks} marks • {r.grade}</span>
                 </div>
               ))}

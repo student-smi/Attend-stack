@@ -5,7 +5,7 @@ from database import get_db
 from schemas.attendance import AttendanceCreate, AttendanceUpdate, AttendanceOut, BulkAttendanceCreate
 from crud import attendance as crud
 from crud import student as student_crud
-from auth.dependencies import require_admin, get_current_user
+from auth.dependencies import require_admin, get_current_user, require_teacher_or_admin
 from models.user import User
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
@@ -15,9 +15,9 @@ router = APIRouter(prefix="/attendance", tags=["Attendance"])
 def mark_bulk_attendance(
     data: BulkAttendanceCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin)
+    current_user: User = Depends(require_teacher_or_admin)
 ):
-    """Mark attendance for all students in a class at once (Admin only)."""
+    """Mark attendance for all students in a class at once (Teacher or Admin)."""
     return crud.bulk_create(db, data, marked_by=str(current_user.id))
 
 
@@ -25,9 +25,9 @@ def mark_bulk_attendance(
 def get_class_attendance(
     class_id: str,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin)
+    _: User = Depends(require_teacher_or_admin)
 ):
-    """Get all attendance records for a class (Admin only)."""
+    """Get all attendance records for a class (Teacher or Admin)."""
     return crud.get_by_class(db, class_id)
 
 

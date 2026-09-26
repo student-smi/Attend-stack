@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "college-sms-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-09-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "college-db",
+      "database_id": "4a765815-d947-4b10-8be3-20c3b1f2d4f7"
+    }
+  ],
+  "vars": {
+    "JWT_SECRET": "college-super-secret-key-2024"
+  }
+}
