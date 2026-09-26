@@ -167,6 +167,60 @@ CREATE TABLE IF NOT EXISTS class_diary (
 CREATE INDEX IF NOT EXISTS idx_class_diary_class_id ON class_diary(class_id);
 CREATE INDEX IF NOT EXISTS idx_class_diary_date     ON class_diary(date);
 
+-- Table 12: quizzes
+CREATE TABLE IF NOT EXISTS quizzes (
+    id               TEXT PRIMARY KEY,
+    title            TEXT NOT NULL,
+    description      TEXT,
+    subject          TEXT NOT NULL,
+    class_id         TEXT REFERENCES classes(id) ON DELETE CASCADE,
+    teacher_id       TEXT REFERENCES teachers(id) ON DELETE SET NULL,
+    duration_minutes INTEGER NOT NULL DEFAULT 15,
+    total_marks      INTEGER NOT NULL DEFAULT 10,
+    questions_json   TEXT NOT NULL,
+    is_active        INTEGER NOT NULL DEFAULT 1,
+    created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_quizzes_class_id   ON quizzes(class_id);
+CREATE INDEX IF NOT EXISTS idx_quizzes_teacher_id ON quizzes(teacher_id);
+
+-- Table 13: quiz_submissions
+CREATE TABLE IF NOT EXISTS quiz_submissions (
+    id                  TEXT PRIMARY KEY,
+    quiz_id             TEXT NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+    student_id          TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    score               INTEGER NOT NULL,
+    total_marks         INTEGER NOT NULL,
+    answers_json        TEXT NOT NULL,
+    time_spent_seconds  INTEGER NOT NULL DEFAULT 0,
+    submitted_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(quiz_id, student_id)
+);
+CREATE INDEX IF NOT EXISTS idx_quiz_submissions_quiz    ON quiz_submissions(quiz_id);
+CREATE INDEX IF NOT EXISTS idx_quiz_submissions_student ON quiz_submissions(student_id);
+
+-- Table 14: leave_requests
+CREATE TABLE IF NOT EXISTS leave_requests (
+    id              TEXT PRIMARY KEY,
+    applicant_type  TEXT NOT NULL CHECK(applicant_type IN ('student', 'teacher')),
+    student_id      TEXT REFERENCES students(id) ON DELETE CASCADE,
+    teacher_id      TEXT REFERENCES teachers(id) ON DELETE CASCADE,
+    user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    leave_type      TEXT NOT NULL CHECK(leave_type IN ('Sick', 'Casual', 'Emergency', 'Vacation', 'Other')),
+    from_date       TEXT NOT NULL,
+    to_date         TEXT NOT NULL,
+    reason          TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'Pending' CHECK(status IN ('Pending', 'Approved', 'Rejected')),
+    reviewed_by     TEXT REFERENCES users(id) ON DELETE SET NULL,
+    review_remarks  TEXT,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_leave_student_id ON leave_requests(student_id);
+CREATE INDEX IF NOT EXISTS idx_leave_teacher_id ON leave_requests(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_leave_status     ON leave_requests(status);
+
 -- Default Admin User (admin@college.com / admin123)
 INSERT OR IGNORE INTO users (id, email, password, role, is_active) VALUES (
     'admin-root-uuid-0001',
@@ -175,3 +229,4 @@ INSERT OR IGNORE INTO users (id, email, password, role, is_active) VALUES (
     'admin',
     1
 );
+

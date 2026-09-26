@@ -1064,5 +1064,371 @@ app.delete('/diary/:id', requireStaff, async (c) => {
   return c.json({ message: 'Diary entry deleted' })
 })
 
+// ── QUIZZES ENDPOINTS ────────────────────────────────────────────────
+const ensureQuizTables = async (db: D1Database) => {
+  try {
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS quizzes (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        subject TEXT NOT NULL,
+        class_id TEXT,
+        teacher_id TEXT,
+        duration_minutes INTEGER NOT NULL DEFAULT 15,
+        total_marks INTEGER NOT NULL DEFAULT 10,
+        questions_json TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run()
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS quiz_submissions (
+        id TEXT PRIMARY KEY,
+        quiz_id TEXT NOT NULL,
+        student_id TEXT NOT NULL,
+        score INTEGER NOT NULL,
+        total_marks INTEGER NOT NULL,
+        answers_json TEXT NOT NULL,
+        time_spent_seconds INTEGER NOT NULL DEFAULT 0,
+        submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(quiz_id, student_id)
+      )
+    `).run()
+  } catch (e) {}
+}
+
+app.get('/quizzes/', requireAuth, async (c) => {
+  await ensureQuizTables(c.env.DB)
+  const classId = c.req.query('class_id')
+  const teacherId = c.req.query('teacher_id')
+  
+  let query = `
+    SELECT q.*, c.name as class_name, c.section as class_section, t.name as teacher_name,
+      (SELECT COUNT(*) FROM quiz_submissions qs WHERE qs.quiz_id = q.id) as submissions_count
+    FROM quizzes q
+    LEFT JOIN classes c ON q.class_id = c.id
+    LEFT JOIN teachers t ON q.teacher_id = t.id
+    WHERE 1=1
+  `
+  const params: any[] = []
+  if (classId) {
+    query += ' AND q.class_id = ?'
+    params.push(classId)
+  }
+  if (teacherId) {
+    query += ' AND q.teacher_id = ?'
+    params.push(teacherId)
+  }
+  query += ' ORDER BY q.created_at DESC'
+
+  const stmt = c.env.DB.prepare(query)
+  const { results } = await (params.length ? stmt.bind(...params) : stmt).all()
+  return c.json(results || [])
+})
+
+app.get('/quizzes/:id', requireAuth, async (c) => {
+  await ensureQuizTables(c.env.DB)
+  const id = c.req.param('id')
+  const quiz: any = await c.env.DB.prepare(`
+    SELECT q.*, c.name as class_name, c.section as class_section, t.name as teacher_name
+    FROM quizzes q
+    LEFT JOIN classes c ON q.class_id = c.id
+    LEFT JOIN teachers t ON q.teacher_id = t.id
+    WHERE q.id = ?
+  `).bind(id).first()
+
+  if (!quiz) return c.json({ detail: 'Quiz not found' }, 404)
+  return c.json(quiz)
+})
+
+app.post('/quizzes/', requireStaff, async (c) => {
+  await ensureQuizTables(c.env.DB)
+  const { sub, role } = c.get('userPayload')
+  const body = await c.req.json()
+  const id = crypto.randomUUID()
+  let teacherId = body.teacher_id || null
+
+  if (!teacherId && role === 'teacher') {
+    const teacher: any = await c.env.DB.prepare('SELECT id FROM teachers WHERE user_id = ? OR id = ?').bind(sub, sub).first()
+    if (teacher) teacherId = teacher.id
+  }
+
+  const questionsJson = typeof body.questions_json === 'string' ? body.questions_json : JSON.stringify(body.questions_json || [])
+
+  await c.env.DB.prepare(`
+    INSERT INTO quizzes (id, title, description, subject, class_id, teacher_id, duration_minutes, total_marks, questions_json, is_active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    id,
+    body.title,
+    body.description || '',
+    body.subject,
+    body.class_id || null,
+    teacherId,
+    body.duration_minutes || 15,
+    body.total_marks || 10,
+    questionsJson,
+    body.is_active !== undefined ? (body.is_active ? 1 : 0) : 1
+  ).run()
+
+  const created = await c.env.DB.prepare('SELECT * FROM quizzes WHERE id = ?').bind(id).first()
+  return c.json(created, 201)
+})
+
+app.delete('/quizzes/:id', requireStaff, async (c) => {
+  await ensureQuizTables(c.env.DB)
+  const id = c.req.param('id')
+  await c.env.DB.prepare('DELETE FROM quizzes WHERE id = ?').bind(id).run()
+  return c.json({ message: 'Quiz deleted successfully' })
+})
+
+// Student submits Quiz
+app.post('/quizzes/:id/submit', requireAuth, async (c) => {
+  await ensureQuizTables(c.env.DB)
+  const { sub, role } = c.get('userPayload')
+  const quizId = c.req.param('id')
+  const body = await c.req.json()
+  const { answers, time_spent_seconds } = body
+
+  // Get student ID
+  let studentId = body.student_id
+  if (!studentId && role === 'student') {
+    const st: any = await c.env.DB.prepare('SELECT id FROM students WHERE user_id = ? OR id = ?').bind(sub, sub).first()
+    if (st) studentId = st.id
+  }
+  if (!studentId) return c.json({ detail: 'Student record not found' }, 400)
+
+  // Get quiz
+  const quiz: any = await c.env.DB.prepare('SELECT * FROM quizzes WHERE id = ?').bind(quizId).first()
+  if (!quiz) return c.json({ detail: 'Quiz not found' }, 404)
+
+  const questions = JSON.parse(quiz.questions_json || '[]')
+  let score = 0
+  let totalMarks = quiz.total_marks || (questions.length)
+
+  // Calculate score
+  questions.forEach((q: any, idx: number) => {
+    const qId = q.id || String(idx)
+    const userAns = answers[qId] !== undefined ? answers[qId] : answers[idx]
+    const correctAns = q.correct_option !== undefined ? q.correct_option : q.answer
+    if (userAns !== undefined && userAns !== null && parseInt(String(userAns), 10) === parseInt(String(correctAns), 10)) {
+      score += (q.marks || 1)
+    }
+  })
+
+  const subId = crypto.randomUUID()
+  const answersJson = JSON.stringify(answers || {})
+
+  // Upsert submission
+  await c.env.DB.prepare(`
+    INSERT INTO quiz_submissions (id, quiz_id, student_id, score, total_marks, answers_json, time_spent_seconds, submitted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(quiz_id, student_id) DO UPDATE SET
+      score = excluded.score,
+      answers_json = excluded.answers_json,
+      time_spent_seconds = excluded.time_spent_seconds,
+      submitted_at = CURRENT_TIMESTAMP
+  `).bind(subId, quizId, studentId, score, totalMarks, answersJson, time_spent_seconds || 0).run()
+
+  return c.json({
+    message: 'Quiz submitted successfully',
+    submission_id: subId,
+    score,
+    total_marks: totalMarks,
+    percentage: Math.round((score / (totalMarks || 1)) * 100),
+    time_spent_seconds: time_spent_seconds || 0
+  })
+})
+
+// Get all submissions for a quiz (for Teacher / Admin / Leaderboard)
+app.get('/quizzes/:id/submissions', requireAuth, async (c) => {
+  await ensureQuizTables(c.env.DB)
+  const quizId = c.req.param('id')
+  const { results } = await c.env.DB.prepare(`
+    SELECT qs.*, s.name as student_name, s.roll_number, s.student_id as student_code, s.email as student_email
+    FROM quiz_submissions qs
+    JOIN students s ON qs.student_id = s.id
+    WHERE qs.quiz_id = ?
+    ORDER BY qs.score DESC, qs.time_spent_seconds ASC
+  `).bind(quizId).all()
+
+  return c.json(results || [])
+})
+
+// Student get my submissions
+app.get('/quizzes/student/my-submissions', requireAuth, async (c) => {
+  await ensureQuizTables(c.env.DB)
+  const { sub, role } = c.get('userPayload')
+  let studentId = c.req.query('student_id')
+  if (!studentId && role === 'student') {
+    const st: any = await c.env.DB.prepare('SELECT id FROM students WHERE user_id = ? OR id = ?').bind(sub, sub).first()
+    if (st) studentId = st.id
+  }
+
+  if (!studentId) return c.json([])
+
+  const { results } = await c.env.DB.prepare(`
+    SELECT qs.*, q.title as quiz_title, q.subject as quiz_subject, q.duration_minutes
+    FROM quiz_submissions qs
+    JOIN quizzes q ON qs.quiz_id = q.id
+    WHERE qs.student_id = ?
+    ORDER BY qs.submitted_at DESC
+  `).bind(studentId).all()
+
+  return c.json(results || [])
+})
+
+// ── LEAVE MANAGEMENT ENDPOINTS ───────────────────────────────────────
+const ensureLeaveTables = async (db: D1Database) => {
+  try {
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS leave_requests (
+        id TEXT PRIMARY KEY,
+        applicant_type TEXT NOT NULL,
+        student_id TEXT,
+        teacher_id TEXT,
+        user_id TEXT NOT NULL,
+        leave_type TEXT NOT NULL,
+        from_date TEXT NOT NULL,
+        to_date TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'Pending',
+        reviewed_by TEXT,
+        review_remarks TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run()
+  } catch (e) {}
+}
+
+app.get('/leaves/', requireAuth, async (c) => {
+  await ensureLeaveTables(c.env.DB)
+  const { sub, role } = c.get('userPayload')
+  const status = c.req.query('status')
+  const applicantType = c.req.query('applicant_type')
+
+  let query = `
+    SELECT l.*,
+      CASE 
+        WHEN l.applicant_type = 'student' THEN s.name
+        WHEN l.applicant_type = 'teacher' THEN t.name
+        ELSE u.email
+      END as applicant_name,
+      s.roll_number,
+      c.name as class_name,
+      c.section as class_section,
+      t.specialization,
+      rev.email as reviewer_email
+    FROM leave_requests l
+    LEFT JOIN users u ON l.user_id = u.id
+    LEFT JOIN students s ON l.student_id = s.id
+    LEFT JOIN classes c ON s.class_id = c.id
+    LEFT JOIN teachers t ON l.teacher_id = t.id
+    LEFT JOIN users rev ON l.reviewed_by = rev.id
+    WHERE 1=1
+  `
+  const params: any[] = []
+
+  // If student or teacher, only view their own leaves unless staff viewing student leaves
+  if (role === 'student') {
+    query += ' AND l.user_id = ?'
+    params.push(sub)
+  } else if (role === 'teacher' && !c.req.query('all_students')) {
+    // Teacher viewing own leaves or their class student leaves
+    const teacher: any = await c.env.DB.prepare('SELECT id FROM teachers WHERE user_id = ? OR id = ?').bind(sub, sub).first()
+    if (c.req.query('scope') === 'my') {
+      query += ' AND (l.user_id = ? OR l.teacher_id = ?)'
+      params.push(sub, teacher?.id || '')
+    }
+  }
+
+  if (status) {
+    query += ' AND l.status = ?'
+    params.push(status)
+  }
+  if (applicantType) {
+    query += ' AND l.applicant_type = ?'
+    params.push(applicantType)
+  }
+
+  query += ' ORDER BY l.created_at DESC'
+
+  const stmt = c.env.DB.prepare(query)
+  const { results } = await (params.length ? stmt.bind(...params) : stmt).all()
+  return c.json(results || [])
+})
+
+// Apply for leave
+app.post('/leaves/', requireAuth, async (c) => {
+  await ensureLeaveTables(c.env.DB)
+  const { sub, role } = c.get('userPayload')
+  const body = await c.req.json()
+  const id = crypto.randomUUID()
+
+  let studentId = null
+  let teacherId = null
+  const applicantType = role === 'teacher' ? 'teacher' : 'student'
+
+  if (role === 'student') {
+    const st: any = await c.env.DB.prepare('SELECT id FROM students WHERE user_id = ? OR id = ?').bind(sub, sub).first()
+    if (st) studentId = st.id
+  } else if (role === 'teacher') {
+    const tc: any = await c.env.DB.prepare('SELECT id FROM teachers WHERE user_id = ? OR id = ?').bind(sub, sub).first()
+    if (tc) teacherId = tc.id
+  }
+
+  await c.env.DB.prepare(`
+    INSERT INTO leave_requests (id, applicant_type, student_id, teacher_id, user_id, leave_type, from_date, to_date, reason, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending')
+  `).bind(
+    id,
+    applicantType,
+    studentId,
+    teacherId,
+    sub,
+    body.leave_type || 'Casual',
+    body.from_date,
+    body.to_date,
+    body.reason
+  ).run()
+
+  const created = await c.env.DB.prepare('SELECT * FROM leave_requests WHERE id = ?').bind(id).first()
+  return c.json(created, 201)
+})
+
+// Review leave (Approve or Reject)
+app.put('/leaves/:id/review', requireStaff, async (c) => {
+  await ensureLeaveTables(c.env.DB)
+  const { sub } = c.get('userPayload')
+  const id = c.req.param('id')
+  const body = await c.req.json()
+  const { status, review_remarks } = body
+
+  if (!['Approved', 'Rejected'].includes(status)) {
+    return c.json({ detail: 'Invalid status. Must be Approved or Rejected' }, 400)
+  }
+
+  await c.env.DB.prepare(`
+    UPDATE leave_requests
+    SET status = ?, review_remarks = ?, reviewed_by = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).bind(status, review_remarks || '', sub, id).run()
+
+  const updated = await c.env.DB.prepare('SELECT * FROM leave_requests WHERE id = ?').bind(id).first()
+  return c.json(updated)
+})
+
+// Delete leave (Cancel if pending)
+app.delete('/leaves/:id', requireAuth, async (c) => {
+  await ensureLeaveTables(c.env.DB)
+  const id = c.req.param('id')
+  await c.env.DB.prepare('DELETE FROM leave_requests WHERE id = ?').bind(id).run()
+  return c.json({ message: 'Leave request deleted' })
+})
+
 export default app
+
 

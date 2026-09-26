@@ -109,3 +109,82 @@ INSERT OR REPLACE INTO class_diary (id, class_id, subject_id, teacher_id, date, 
 ('dry-001', 'cls-cs-sem1-a', 'sub-cs-102', 'tch-sharma', '2026-09-26', 'Chapter 3: Binary Search Trees - Insertion and In-order Traversal', 'Solve Questions 1 to 5 from Tutorial Sheet 3. Draw BST for given dataset.', '2026-09-28'),
 ('dry-002', 'cls-cs-sem1-a', 'sub-db-103', 'tch-verma',  '2026-09-25', 'Chapter 4: SQL Joins - Inner Join, Left Outer Join, and Subqueries', 'Write 5 SQL queries for customer-order database from textbook page 112.', '2026-09-27');
 
+-- 12. QUIZZES & MCQ TESTS
+INSERT OR REPLACE INTO quizzes (id, title, description, subject, class_id, teacher_id, duration_minutes, total_marks, questions_json, is_active) VALUES
+('qz-001', 'Data Structures - Trees & Graphs Live Quiz', 'Test your understanding of Binary Trees, BST, Graphs and traversal algorithms.', 'Computer Science', 'cls-cs-sem1-a', 'tch-sharma', 10, 5, '[
+  {
+    "id": "q1",
+    "question": "What is the worst-case time complexity of searching in an unbalanced Binary Search Tree (BST)?",
+    "options": ["O(log n)", "O(n)", "O(n log n)", "O(1)"],
+    "correct_option": 1,
+    "explanation": "In the worst case (skewed tree), BST degrades into a linked list giving O(n) search time.",
+    "marks": 1
+  },
+  {
+    "id": "q2",
+    "question": "Which tree traversal outputs the nodes of a Binary Search Tree in sorted ascending order?",
+    "options": ["Pre-order", "Post-order", "In-order", "Level-order"],
+    "correct_option": 2,
+    "explanation": "In-order traversal visits (Left, Root, Right), which outputs keys in strictly non-decreasing order.",
+    "marks": 1
+  },
+  {
+    "id": "q3",
+    "question": "Which data structure is inherently used in Breadth-First Search (BFS) graph traversal?",
+    "options": ["Stack", "Queue", "Priority Queue", "Array"],
+    "correct_option": 1,
+    "explanation": "BFS explores neighbor by neighbor in FIFO manner, utilizing a Queue.",
+    "marks": 1
+  },
+  {
+    "id": "q4",
+    "question": "A complete binary tree with N leaves has how many total nodes?",
+    "options": ["2N - 1", "2N", "N log N", "2^(N)"],
+    "correct_option": 0,
+    "explanation": "A full strictly binary tree with N leaves always has 2N - 1 nodes.",
+    "marks": 1
+  },
+  {
+    "id": "q5",
+    "question": "Which algorithm is used to find the Shortest Path in a weighted graph without negative cycles?",
+    "options": ["Prim''s Algorithm", "Kruskal''s Algorithm", "Dijkstra''s Algorithm", "Floyd Warshall"],
+    "correct_option": 2,
+    "explanation": "Dijkstra''s greedy algorithm calculates single-source shortest paths in non-negative weighted graphs.",
+    "marks": 1
+  }
+]', 1),
+('qz-002', 'DBMS & SQL Mastery Sprint Test', 'Quick 5-minute speed quiz on SQL clauses, ACID properties and Normalization.', 'Database Management Systems', 'cls-cs-sem1-a', 'tch-verma', 5, 3, '[
+  {
+    "id": "db_q1",
+    "question": "Which SQL clause is used to filter records after aggregation (GROUP BY)?",
+    "options": ["WHERE", "HAVING", "ORDER BY", "FILTER"],
+    "correct_option": 1,
+    "explanation": "HAVING filters aggregated grouped results, whereas WHERE filters individual rows before grouping.",
+    "marks": 1
+  },
+  {
+    "id": "db_q2",
+    "question": "What does ''A'' stand for in ACID properties of database transactions?",
+    "options": ["Availability", "Atomicity", "Accuracy", "Association"],
+    "correct_option": 1,
+    "explanation": "Atomicity ensures all operations in a transaction succeed completely or none take effect (All-or-Nothing).",
+    "marks": 1
+  },
+  {
+    "id": "db_q3",
+    "question": "Which Normal Form removes transitive dependencies?",
+    "options": ["1NF", "2NF", "3NF", "BCNF"],
+    "correct_option": 2,
+    "explanation": "3NF requires the relation to be in 2NF and have no non-prime attribute transitively dependent on the primary key.",
+    "marks": 1
+  }
+]', 1);
+
+-- 13. LEAVE REQUESTS
+INSERT OR REPLACE INTO leave_requests (id, applicant_type, student_id, teacher_id, user_id, leave_type, from_date, to_date, reason, status, reviewed_by, review_remarks) VALUES
+('lv-001', 'student', 'stu-001', NULL, 'usr-stu-rahul', 'Sick', '2026-09-27', '2026-09-28', 'Suffering from high fever and severe flu. Doctor advised 2 days bed rest.', 'Pending', NULL, NULL),
+('lv-002', 'student', 'stu-002', NULL, 'usr-stu-priya', 'Emergency', '2026-09-24', '2026-09-25', 'Urgent family function out of town.', 'Approved', 'admin-root-uuid-0001', 'Approved. Ensure homework is submitted on return.'),
+('lv-003', 'teacher', NULL, 'tch-sharma', 'usr-tch-sharma', 'Casual', '2026-10-02', '2026-10-02', 'National holiday conference attendance.', 'Approved', 'admin-root-uuid-0001', 'Approved. Please arrange substitute lecture.');
+
+
+

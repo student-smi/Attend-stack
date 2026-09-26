@@ -3,26 +3,29 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 const adminLinks = [
-  { to: '/admin',            label: 'Dashboard',  icon: '🏠' },
-  { to: '/admin/students',   label: 'Students',   icon: '👥' },
-  { to: '/admin/classes',    label: 'Classes',    icon: '🏫' },
-  { to: '/admin/attendance', label: 'Attendance', icon: '✅' },
-  { to: '/admin/exams',      label: 'Exams',      icon: '📝' },
-  { to: '/admin/results',    label: 'Results',    icon: '📊' },
-  { to: '/admin/fees',       label: 'Fees',       icon: '💰' },
-  { to: '/admin/teachers',   label: 'Teachers',   icon: '👨‍🏫' },
-  { to: '/admin/subjects',   label: 'Subjects',   icon: '📚' },
-  { to: '/admin/timetable',  label: 'Timetable',  icon: '🗓️' },
+  { to: '/admin',            label: 'Dashboard',       icon: '🏠' },
+  { to: '/admin/students',   label: 'Students',        icon: '👥' },
+  { to: '/admin/classes',    label: 'Classes',         icon: '🏫' },
+  { to: '/admin/attendance', label: 'Attendance',      icon: '✅' },
+  { to: '/admin/exams',      label: 'Exams',           icon: '📝' },
+  { to: '/admin/results',    label: 'Results',         icon: '📊' },
+  { to: '/admin/fees',       label: 'Fees',            icon: '💰' },
+  { to: '/admin/teachers',   label: 'Teachers',        icon: '👨‍🏫' },
+  { to: '/admin/subjects',   label: 'Subjects',        icon: '📚' },
+  { to: '/admin/timetable',  label: 'Timetable',       icon: '🗓️' },
+  { to: '/admin/leaves',     label: 'Leave Requests',  icon: '📬' },
 ]
 
 const studentLinks = [
-  { to: '/student',            label: 'Dashboard',  icon: '🏠' },
-  { to: '/student/attendance', label: 'Attendance', icon: '✅' },
-  { to: '/student/exams',      label: 'Exams',      icon: '📝' },
-  { to: '/student/results',    label: 'Results',    icon: '📊' },
-  { to: '/student/fees',       label: 'Fees',       icon: '💰' },
-  { to: '/student/timetable',  label: 'Timetable',  icon: '🗓️' },
-  { to: '/student/profile',    label: 'Profile',    icon: '👤' },
+  { to: '/student',            label: 'Dashboard',         icon: '🏠' },
+  { to: '/student/quizzes',    label: 'Live MCQ Quizzes',  icon: '⏱️' },
+  { to: '/student/leaves',     label: 'Leave Application', icon: '📝' },
+  { to: '/student/attendance', label: 'Attendance',        icon: '✅' },
+  { to: '/student/exams',      label: 'Exams',             icon: '📝' },
+  { to: '/student/results',    label: 'Results',           icon: '📊' },
+  { to: '/student/fees',       label: 'Fees',              icon: '💰' },
+  { to: '/student/timetable',  label: 'Timetable',         icon: '🗓️' },
+  { to: '/student/profile',    label: 'Profile',           icon: '👤' },
 ]
 
 const teacherLinks = [
@@ -31,10 +34,13 @@ const teacherLinks = [
   { to: '/teacher?tab=attendance',  label: 'Take Attendance',   icon: '📝' },
   { to: '/teacher?tab=marks',       label: 'Test Marks Entry',  icon: '🎯' },
   { to: '/teacher?tab=diary',       label: 'Daily Homework',    icon: '📖' },
+  { to: '/teacher?tab=quizzes',     label: 'Online Quizzes',    icon: '⏱️' },
+  { to: '/teacher?tab=leaves',      label: 'Leave Requests',    icon: '📬' },
   { to: '/teacher?tab=alerts',      label: 'Weak Students',     icon: '⚠️' },
   { to: '/teacher?tab=payouts',     label: 'Lecture Counter',   icon: '💼' },
   { to: '/teacher/timetable',       label: 'Full Timetable',    icon: '🗓️' },
 ]
+
 
 export default function Sidebar() {
   const { user, logout, isAdmin } = useAuth()

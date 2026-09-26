@@ -9,4 +9,7 @@ from .teacher import Teacher
 from .subject import Subject
 from .timetable import TimetableEntry
 from .diary import ClassDiary
+from .quiz import Quiz, QuizSubmission
+from .leave import LeaveRequest
+
 

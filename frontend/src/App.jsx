@@ -23,6 +23,10 @@ import StudentExams     from './pages/student/Exams'
 import StudentResults   from './pages/student/Results'
 import StudentFees      from './pages/student/Fees'
 import StudentProfile   from './pages/student/Profile'
+import StudentQuizzes   from './pages/student/Quizzes'
+import StudentLeaves    from './pages/student/Leaves'
+import AdminLeaves      from './pages/admin/Leaves'
+
 
 // ── Full-screen loader ──
 function PageLoader() {
@@ -95,16 +99,20 @@ export default function App() {
               <Route path="/admin/teachers"   element={<Teachers />} />
               <Route path="/admin/subjects"   element={<Subjects />} />
               <Route path="/admin/timetable"  element={<AdminTimetable />} />
+              <Route path="/admin/leaves"     element={<AdminLeaves />} />
             </Route>
 
             {/* Student routes */}
             <Route path="/student"            element={<StudentDashboard />} />
+            <Route path="/student/quizzes"    element={<StudentQuizzes />} />
+            <Route path="/student/leaves"     element={<StudentLeaves />} />
             <Route path="/student/attendance" element={<StudentAttendance />} />
             <Route path="/student/exams"      element={<StudentExams />} />
             <Route path="/student/results"    element={<StudentResults />} />
             <Route path="/student/fees"       element={<StudentFees />} />
             <Route path="/student/profile"    element={<StudentProfile />} />
             <Route path="/student/timetable"  element={<StudentTimetable />} />
+
 
             {/* Teacher routes */}
             <Route path="/teacher"             element={<TeacherDashboard />} />

@@ -130,12 +130,53 @@ export default function TeacherDashboard() {
     return parseInt(localStorage.getItem('teacher_rate_per_lecture') || '500', 10)
   })
 
+  // ── Tab 7: Online Quizzes State ──
+  const [quizzes, setQuizzes]                 = useState([])
+  const [showCreateQuizModal, setShowCreateQuizModal] = useState(false)
+  const [quizSubmissionsModal, setQuizSubmissionsModal] = useState(null)
+  const [quizSubmissionsList, setQuizSubmissionsList]   = useState([])
+  const [loadingSubmissions, setLoadingSubmissions]     = useState(false)
+  const [quizForm, setQuizForm]               = useState({
+    title: '',
+    subject: '',
+    class_id: '',
+    duration_minutes: 10,
+    total_marks: 5,
+    questions: [
+      {
+        id: 'q1',
+        question: '',
+        options: ['', '', '', ''],
+        correct_option: 0,
+        explanation: '',
+        marks: 1
+      }
+    ]
+  })
+  const [creatingQuiz, setCreatingQuiz] = useState(false)
+
+  // ── Tab 8: Leave Management State ──
+  const [leaves, setLeaves]                   = useState([])
+  const [leaveTab, setLeaveTab]               = useState('student_leaves') // 'student_leaves' | 'my_leaves'
+  const [showTeacherLeaveModal, setShowTeacherLeaveModal] = useState(false)
+  const [teacherLeaveForm, setTeacherLeaveForm] = useState({
+    leave_type: 'Casual',
+    from_date: new Date().toISOString().split('T')[0],
+    to_date: new Date().toISOString().split('T')[0],
+    reason: ''
+  })
+  const [applyingTeacherLeave, setApplyingTeacherLeave] = useState(false)
+  const [reviewLeaveItem, setReviewLeaveItem] = useState(null)
+  const [reviewLeaveRemarks, setReviewLeaveRemarks] = useState('')
+  const [processingReview, setProcessingReview] = useState(false)
+
   // Save rate to local storage
   const handleRateChange = (val) => {
     const num = parseInt(val, 10) || 0
     setRatePerLecture(num)
     localStorage.setItem('teacher_rate_per_lecture', String(num))
   }
+
 
   // ── Initial Data Load ──
   const loadData = async () => {
@@ -171,6 +212,16 @@ export default function TeacherDashboard() {
         const cached = localStorage.getItem('teacher_cached_diaries')
         if (cached) setDiaries(JSON.parse(cached))
       }
+
+      // Load Quizzes and Leaves
+      try {
+        const [qRes, lRes] = await Promise.all([
+          api.get('/quizzes/').catch(() => ({ data: [] })),
+          api.get('/leaves/').catch(() => ({ data: [] }))
+        ])
+        setQuizzes(Array.isArray(qRes.data) ? qRes.data : [])
+        setLeaves(Array.isArray(lRes.data) ? lRes.data : [])
+      } catch (err) {}
     } catch (err) {
       console.error('Error loading teacher data:', err)
     } finally {
@@ -178,9 +229,152 @@ export default function TeacherDashboard() {
     }
   }
 
+  // Quiz submission loader
+  const handleOpenQuizSubmissions = async (quiz) => {
+    setQuizSubmissionsModal(quiz)
+    setLoadingSubmissions(true)
+    try {
+      const res = await api.get(`/quizzes/${quiz.id}/submissions`)
+      setQuizSubmissionsList(res.data || [])
+    } catch (e) {
+      setQuizSubmissionsList([])
+    } finally {
+      setLoadingSubmissions(false)
+    }
+  }
+
+  // Auto-fill sample questions in quiz creator
+  const handleAutoFillSampleQuestions = () => {
+    setQuizForm(prev => ({
+      ...prev,
+      title: prev.title || 'Weekly Concept Mastery Sprint Quiz',
+      subject: prev.subject || teacher?.subject_name || 'General Computer Science',
+      duration_minutes: 10,
+      total_marks: 3,
+      questions: [
+        {
+          id: 'q1',
+          question: 'What is the standard time complexity of binary search on a sorted array?',
+          options: ['O(n)', 'O(log n)', 'O(n^2)', 'O(1)'],
+          correct_option: 1,
+          explanation: 'Binary search halves the search space at each step, giving logarithmic time complexity O(log n).',
+          marks: 1
+        },
+        {
+          id: 'q2',
+          question: 'Which principle does a Queue data structure follow?',
+          options: ['LIFO (Last In First Out)', 'FIFO (First In First Out)', 'Random Access', 'Priority Only'],
+          correct_option: 1,
+          explanation: 'Queues follow First-In First-Out (FIFO) where insertion happens at rear and deletion at front.',
+          marks: 1
+        },
+        {
+          id: 'q3',
+          question: 'Which of the following is an example of an interpreted language?',
+          options: ['C', 'C++', 'Python', 'Rust'],
+          correct_option: 2,
+          explanation: 'Python code is interpreted line by line at runtime by the Python interpreter (CPython bytecode).',
+          marks: 1
+        }
+      ]
+    }))
+  }
+
+  // Create Quiz
+  const handleCreateQuizSubmit = async (e) => {
+    e.preventDefault()
+    if (!quizForm.title.trim() || !quizForm.subject.trim()) {
+      alert('Please fill quiz title and subject')
+      return
+    }
+    const validQuestions = quizForm.questions.filter(q => q.question.trim())
+    if (validQuestions.length === 0) {
+      alert('Please add at least 1 valid question with text')
+      return
+    }
+
+    setCreatingQuiz(true)
+    try {
+      const payload = {
+        title: quizForm.title.trim(),
+        subject: quizForm.subject.trim(),
+        class_id: quizForm.class_id || (classes[0]?.id || null),
+        duration_minutes: parseInt(quizForm.duration_minutes, 10) || 10,
+        total_marks: validQuestions.reduce((a, b) => a + (parseInt(b.marks, 10) || 1), 0),
+        questions_json: validQuestions
+      }
+
+      const res = await api.post('/quizzes/', payload)
+      setQuizzes([res.data, ...quizzes])
+      setShowCreateQuizModal(false)
+      alert('✓ Online Quiz created & live for students!')
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to create quiz')
+    } finally {
+      setCreatingQuiz(false)
+    }
+  }
+
+  // Delete Quiz
+  const handleDeleteQuiz = async (quizId) => {
+    if (!window.confirm('Are you sure you want to delete this quiz?')) return
+    try {
+      await api.delete(`/quizzes/${quizId}`)
+      setQuizzes(quizzes.filter(q => q.id !== quizId))
+    } catch (e) {
+      alert('Failed to delete quiz')
+    }
+  }
+
+  // Review Student Leave
+  const handleReviewLeaveSubmit = async (status, remarks = '') => {
+    if (!reviewLeaveItem) return
+    setProcessingReview(true)
+    try {
+      await api.put(`/leaves/${reviewLeaveItem.id}/review`, {
+        status,
+        review_remarks: remarks || reviewLeaveRemarks
+      })
+      setLeaves(leaves.map(l => l.id === reviewLeaveItem.id ? { ...l, status, review_remarks: remarks || reviewLeaveRemarks } : l))
+      setReviewLeaveItem(null)
+      setReviewLeaveRemarks('')
+    } catch (e) {
+      alert('Failed to update leave request')
+    } finally {
+      setProcessingReview(false)
+    }
+  }
+
+  // Teacher Apply for Leave
+  const handleTeacherApplyLeave = async (e) => {
+    e.preventDefault()
+    if (!teacherLeaveForm.reason.trim()) {
+      alert('Please enter reason for leave')
+      return
+    }
+    setApplyingTeacherLeave(true)
+    try {
+      const res = await api.post('/leaves/', teacherLeaveForm)
+      setLeaves([res.data, ...leaves])
+      setShowTeacherLeaveModal(false)
+      setTeacherLeaveForm({
+        leave_type: 'Casual',
+        from_date: new Date().toISOString().split('T')[0],
+        to_date: new Date().toISOString().split('T')[0],
+        reason: ''
+      })
+      alert('✓ Leave application submitted for administration approval!')
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Failed to submit leave')
+    } finally {
+      setApplyingTeacherLeave(false)
+    }
+  }
+
   useEffect(() => {
     loadData()
   }, [])
+
 
   // Today name e.g. "Monday", "Sunday"
   const currentDayOfWeek = DAY_NAMES[currentTime.getDay()]
@@ -745,9 +939,12 @@ export default function TeacherDashboard() {
           { id: 'attendance',  label: 'Take Attendance',     icon: '📝' },
           { id: 'marks',       label: 'Test Marks Entry',    icon: '🎯' },
           { id: 'diary',       label: 'Daily Diary & HW',    icon: '📖' },
+          { id: 'quizzes',     label: 'Online Quizzes',      icon: '⏱️' },
+          { id: 'leaves',      label: 'Leave Requests',      icon: '📬' },
           { id: 'alerts',      label: 'Weak Students Alert', icon: '⚠️' },
           { id: 'payouts',     label: 'Lecture Counter',     icon: '💼' },
         ].map(t => {
+
           const isActive = activeTab === t.id
           return (
             <button
@@ -2130,6 +2327,574 @@ export default function TeacherDashboard() {
         </div>
       )}
 
+      {/* ========================================================================= */}
+      {/* 7. ONLINE QUIZZES & MCQ TESTS (Creation, Live Status & Scorecards)       */}
+      {/* ========================================================================= */}
+      {activeTab === 'quizzes' && (
+        <div className="space-y-6 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-purple-950 via-indigo-900 to-slate-900 p-6 rounded-3xl text-white shadow-xl">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-purple-200 text-xs font-semibold mb-2">
+                <span>⏱️ Live Assessment Engine</span>
+                <span>•</span>
+                <span>Instant Scorecards & Leaderboards</span>
+              </div>
+              <h2 className="text-2xl font-black text-white">Online MCQ Quizzes</h2>
+              <p className="text-xs sm:text-sm text-purple-200 mt-1">
+                Create speed tests with countdown timers for students to attempt from their devices.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setShowCreateQuizModal(true)
+                if (quizForm.questions.length === 1 && !quizForm.questions[0].question) {
+                  handleAutoFillSampleQuestions()
+                }
+              }}
+              className="px-5 py-3 rounded-2xl bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-bold text-sm shadow-lg shadow-purple-500/30 hover:from-purple-400 hover:to-indigo-400 transition-all flex items-center justify-center gap-2"
+            >
+              <span>➕ Create Live MCQ Quiz</span>
+            </button>
+          </div>
+
+          {/* Quizzes List Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {quizzes.length === 0 ? (
+              <div className="col-span-full text-center py-16 bg-white rounded-3xl border border-gray-200 text-gray-400">
+                <span className="text-4xl">⏱️</span>
+                <p className="font-bold text-gray-700 mt-2">No Online Quizzes Created Yet</p>
+                <p className="text-xs text-gray-400 mt-1">Click "Create Live MCQ Quiz" to create your first sprint test!</p>
+              </div>
+            ) : (
+              quizzes.map(q => {
+                let qCount = 0
+                try {
+                  const arr = typeof q.questions_json === 'string' ? JSON.parse(q.questions_json) : (q.questions_json || [])
+                  qCount = arr.length
+                } catch (e) {}
+
+                return (
+                  <div key={q.id} className="bg-white rounded-3xl border border-gray-200 p-6 shadow-sm hover:shadow-lg transition-all flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-100">
+                          {q.subject}
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center gap-1">
+                          👥 {q.submissions_count || 0} Attempts
+                        </span>
+                      </div>
+
+                      <h3 className="font-bold text-gray-900 text-base line-clamp-2">{q.title}</h3>
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">{q.description || 'Sprint MCQ Quiz'}</p>
+
+                      <div className="grid grid-cols-3 gap-2 mt-4 py-2.5 border-y border-gray-100 text-center text-xs">
+                        <div>
+                          <p className="text-gray-400 font-medium">Questions</p>
+                          <p className="font-bold text-gray-800">{qCount}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-400 font-medium">Duration</p>
+                          <p className="font-bold text-gray-800">{q.duration_minutes} Mins</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-400 font-medium">Marks</p>
+                          <p className="font-bold text-gray-800">{q.total_marks}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-5">
+                      <button
+                        onClick={() => handleOpenQuizSubmissions(q)}
+                        className="flex-1 py-2 rounded-xl text-xs font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors"
+                      >
+                        📊 Submissions & Scores
+                      </button>
+                      <button
+                        onClick={() => handleDeleteQuiz(q.id)}
+                        className="p-2 rounded-xl text-xs text-red-500 hover:bg-red-50 transition-colors"
+                        title="Delete Quiz"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 8. LEAVE MANAGEMENT (Review Student Requests & Apply for Teacher Leave)   */}
+      {/* ========================================================================= */}
+      {activeTab === 'leaves' && (
+        <div className="space-y-6 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-teal-950 via-slate-900 to-slate-900 p-6 rounded-3xl text-white shadow-xl">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-teal-200 text-xs font-semibold mb-2">
+                <span>📬 Leave Management</span>
+                <span>•</span>
+                <span>Student Approval & Teacher Applications</span>
+              </div>
+              <h2 className="text-2xl font-black text-white">Leave Requests & Approvals</h2>
+              <p className="text-xs sm:text-sm text-teal-200 mt-1">
+                Approve or reject student leave requests for your classes, or submit your own leave to Admin.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowTeacherLeaveModal(true)}
+                className="px-5 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-500 text-slate-950 font-black text-sm shadow-lg shadow-teal-500/20 hover:from-teal-400 hover:to-emerald-400 transition-all flex items-center justify-center gap-2"
+              >
+                <span>➕ Apply Teacher Leave</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Sub-tab pills: Student Requests vs My Leaves */}
+          <div className="flex gap-2 border-b border-gray-200 pb-2">
+            <button
+              onClick={() => setLeaveTab('student_leaves')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                leaveTab === 'student_leaves' ? 'bg-slate-900 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              👨‍🎓 Student Leave Requests ({leaves.filter(l => l.applicant_type === 'student').length})
+            </button>
+            <button
+              onClick={() => setLeaveTab('my_leaves')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                leaveTab === 'my_leaves' ? 'bg-slate-900 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              📋 My Leave History ({leaves.filter(l => l.applicant_type === 'teacher').length})
+            </button>
+          </div>
+
+          {/* Table */}
+          <div className="card p-6 rounded-3xl overflow-hidden">
+            {leaves.filter(l => l.applicant_type === (leaveTab === 'student_leaves' ? 'student' : 'teacher')).length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <span className="text-3xl">🏖️</span>
+                <p className="font-bold text-gray-700 mt-2">No leave requests in this category</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 text-gray-400 text-xs font-bold uppercase">
+                      <th className="pb-3 pl-2">Applicant</th>
+                      <th className="pb-3">Type</th>
+                      <th className="pb-3">Dates</th>
+                      <th className="pb-3">Reason</th>
+                      <th className="pb-3">Status</th>
+                      <th className="pb-3 text-right pr-2">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {leaves
+                      .filter(l => l.applicant_type === (leaveTab === 'student_leaves' ? 'student' : 'teacher'))
+                      .map(l => (
+                        <tr key={l.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="py-4 pl-2 font-bold text-gray-900 text-sm">
+                            {l.applicant_name || 'Anonymous'}
+                            {l.roll_number && <span className="block text-xs font-normal text-gray-400">Roll: {l.roll_number}</span>}
+                          </td>
+                          <td className="py-4">
+                            <span className="px-2.5 py-1 rounded-lg bg-gray-100 text-gray-700 text-xs font-semibold">
+                              {l.leave_type}
+                            </span>
+                          </td>
+                          <td className="py-4 text-xs font-bold text-gray-800">
+                            {l.from_date} ➔ {l.to_date}
+                          </td>
+                          <td className="py-4 text-xs text-gray-600 max-w-xs">
+                            <p className="line-clamp-2" title={l.reason}>{l.reason}</p>
+                          </td>
+                          <td className="py-4">
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
+                              l.status === 'Approved' ? 'bg-emerald-100 text-emerald-700 border-emerald-300' :
+                              l.status === 'Rejected' ? 'bg-red-100 text-red-700 border-red-300' :
+                              'bg-amber-100 text-amber-700 border-amber-300 animate-pulse'
+                            }`}>
+                              {l.status}
+                            </span>
+                          </td>
+                          <td className="py-4 text-right pr-2">
+                            {leaveTab === 'student_leaves' && l.status === 'Pending' ? (
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => handleReviewLeaveSubmit('Approved')}
+                                  onMouseEnter={() => setReviewLeaveItem(l)}
+                                  className="px-3 py-1 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition-colors"
+                                >
+                                  ✓ Approve
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setReviewLeaveItem(l)
+                                  }}
+                                  className="px-3 py-1 rounded-lg bg-red-50 text-red-600 font-bold text-xs hover:bg-red-100 transition-colors"
+                                >
+                                  ✕ Reject
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400 italic">
+                                {l.review_remarks || '—'}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── CREATE QUIZ MODAL ── */}
+      {showCreateQuizModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-100 p-6 md:p-8 max-h-[90vh] overflow-y-auto space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Create Live MCQ Quiz</h3>
+                <p className="text-xs text-gray-500">Configure quiz questions and duration for students</p>
+              </div>
+              <button onClick={() => setShowCreateQuizModal(false)} className="text-gray-400 hover:text-gray-700 text-xl font-bold">✕</button>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleAutoFillSampleQuestions}
+                className="px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 font-bold text-xs hover:bg-purple-100 transition-colors border border-purple-200"
+              >
+                ✨ Auto-Fill Quality Sample Questions
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateQuizSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Quiz Title</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Chapter 4: Data Structures Sprint Quiz"
+                  value={quizForm.title}
+                  onChange={e => setQuizForm({ ...quizForm, title: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Subject</label>
+                  <input
+                    type="text"
+                    required
+                    value={quizForm.subject}
+                    onChange={e => setQuizForm({ ...quizForm, subject: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Class</label>
+                  <select
+                    value={quizForm.class_id}
+                    onChange={e => setQuizForm({ ...quizForm, class_id: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    {classes.map(c => (
+                      <option key={c.id} value={c.id}>{c.name} ({c.section})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Duration (Minutes)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="180"
+                    required
+                    value={quizForm.duration_minutes}
+                    onChange={e => setQuizForm({ ...quizForm, duration_minutes: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+
+              {/* Questions List */}
+              <div className="space-y-4 pt-3 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-gray-800">Questions ({quizForm.questions.length})</h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuizForm({
+                        ...quizForm,
+                        questions: [
+                          ...quizForm.questions,
+                          {
+                            id: 'q_' + Date.now(),
+                            question: '',
+                            options: ['', '', '', ''],
+                            correct_option: 0,
+                            explanation: '',
+                            marks: 1
+                          }
+                        ]
+                      })
+                    }}
+                    className="text-xs font-bold text-purple-600 hover:text-purple-700"
+                  >
+                    + Add Another Question
+                  </button>
+                </div>
+
+                {quizForm.questions.map((q, idx) => (
+                  <div key={idx} className="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-purple-700">Question {idx + 1}</span>
+                      {quizForm.questions.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQuizForm({
+                              ...quizForm,
+                              questions: quizForm.questions.filter((_, i) => i !== idx)
+                            })
+                          }}
+                          className="text-xs text-red-500 hover:text-red-700 font-bold"
+                        >
+                          Delete Q
+                        </button>
+                      )}
+                    </div>
+
+                    <input
+                      type="text"
+                      required
+                      placeholder="Type question text..."
+                      value={q.question}
+                      onChange={e => {
+                        const next = [...quizForm.questions]
+                        next[idx].question = e.target.value
+                        setQuizForm({ ...quizForm, questions: next })
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold outline-none"
+                    />
+
+                    {/* 4 Options */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {q.options.map((opt, oIdx) => (
+                        <div key={oIdx} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-gray-200">
+                          <input
+                            type="radio"
+                            name={`correct_${idx}`}
+                            checked={q.correct_option === oIdx}
+                            onChange={() => {
+                              const next = [...quizForm.questions]
+                              next[idx].correct_option = oIdx
+                              setQuizForm({ ...quizForm, questions: next })
+                            }}
+                            title="Set as correct answer"
+                          />
+                          <span className="text-xs font-bold text-gray-400">{String.fromCharCode(65 + oIdx)}.</span>
+                          <input
+                            type="text"
+                            required
+                            placeholder={`Option ${String.fromCharCode(65 + oIdx)}`}
+                            value={opt}
+                            onChange={e => {
+                              const next = [...quizForm.questions]
+                              next[idx].options[oIdx] = e.target.value
+                              setQuizForm({ ...quizForm, questions: next })
+                            }}
+                            className="w-full text-xs outline-none bg-transparent"
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <input
+                      type="text"
+                      placeholder="Explanation / Solution note (Optional)"
+                      value={q.explanation}
+                      onChange={e => {
+                        const next = [...quizForm.questions]
+                        next[idx].explanation = e.target.value
+                        setQuizForm({ ...quizForm, questions: next })
+                      }}
+                      className="w-full px-3 py-1.5 rounded-xl border border-gray-200 text-xs outline-none bg-white text-gray-600"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-3 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateQuizModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingQuiz}
+                  className="flex-1 py-2.5 rounded-xl bg-purple-600 text-white text-xs font-bold hover:bg-purple-700 shadow-md transition-all"
+                >
+                  {creatingQuiz ? 'Publishing...' : 'Publish Live Quiz'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── QUIZ SUBMISSIONS MODAL ── */}
+      {quizSubmissionsModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-100 p-6 md:p-8 max-h-[85vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div>
+                <h3 className="font-bold text-base text-gray-900">{quizSubmissionsModal.title}</h3>
+                <p className="text-xs text-gray-500">Student Attempts & Scorecard Leaderboard</p>
+              </div>
+              <button onClick={() => setQuizSubmissionsModal(null)} className="text-gray-400 hover:text-gray-700 text-xl font-bold">✕</button>
+            </div>
+
+            {loadingSubmissions ? (
+              <div className="py-12 text-center text-gray-400 text-xs">Loading submissions...</div>
+            ) : quizSubmissionsList.length === 0 ? (
+              <div className="py-12 text-center text-gray-400 text-xs">No students have submitted this quiz yet.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-100 text-gray-400 font-bold uppercase">
+                      <th className="pb-2">Rank / Student</th>
+                      <th className="pb-2">Roll No</th>
+                      <th className="pb-2">Score</th>
+                      <th className="pb-2">Time Spent</th>
+                      <th className="pb-2 text-right">Submitted At</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {quizSubmissionsList.map((sub, idx) => (
+                      <tr key={sub.id} className="hover:bg-gray-50">
+                        <td className="py-3 font-bold text-gray-900 flex items-center gap-2">
+                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
+                            idx === 0 ? 'bg-amber-400 text-white font-black' : idx === 1 ? 'bg-slate-300 text-slate-800' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {idx + 1}
+                          </span>
+                          {sub.student_name}
+                        </td>
+                        <td className="py-3 text-gray-500">{sub.roll_number || '—'}</td>
+                        <td className="py-3 font-bold text-emerald-600">
+                          {sub.score} / {sub.total_marks} ({Math.round((sub.score / (sub.total_marks || 1)) * 100)}%)
+                        </td>
+                        <td className="py-3 text-gray-500">{Math.floor(sub.time_spent_seconds / 60)}m {sub.time_spent_seconds % 60}s</td>
+                        <td className="py-3 text-right text-gray-400">{sub.submitted_at?.slice(0, 16).replace('T', ' ')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── TEACHER APPLY LEAVE MODAL ── */}
+      {showTeacherLeaveModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-gray-100 p-6 md:p-8 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <h3 className="font-bold text-base text-gray-900">Apply for Teacher Leave</h3>
+              <button onClick={() => setShowTeacherLeaveModal(false)} className="text-gray-400 hover:text-gray-700 text-xl font-bold">✕</button>
+            </div>
+
+            <form onSubmit={handleTeacherApplyLeave} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Leave Type</label>
+                <select
+                  value={teacherLeaveForm.leave_type}
+                  onChange={e => setTeacherLeaveForm({ ...teacherLeaveForm, leave_type: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold outline-none"
+                >
+                  <option value="Casual">Casual Leave</option>
+                  <option value="Sick">Sick Leave</option>
+                  <option value="Emergency">Emergency Leave</option>
+                  <option value="Vacation">Vacation</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-gray-500 mb-1">From Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={teacherLeaveForm.from_date}
+                    onChange={e => setTeacherLeaveForm({ ...teacherLeaveForm, from_date: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-gray-500 mb-1">To Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={teacherLeaveForm.to_date}
+                    onChange={e => setTeacherLeaveForm({ ...teacherLeaveForm, to_date: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Reason for Leave</label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="e.g. Conference attendance / personal emergency..."
+                  value={teacherLeaveForm.reason}
+                  onChange={e => setTeacherLeaveForm({ ...teacherLeaveForm, reason: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl border border-gray-200 text-xs outline-none resize-none"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowTeacherLeaveModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={applyingTeacherLeave}
+                  className="flex-1 py-2.5 rounded-xl bg-teal-600 text-white text-xs font-bold hover:bg-teal-700 shadow-md"
+                >
+                  {applyingTeacherLeave ? 'Submitting...' : 'Submit Application'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
+

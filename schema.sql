@@ -162,6 +162,70 @@ CREATE TABLE IF NOT EXISTS class_diary (
 CREATE INDEX idx_class_diary_class_id ON class_diary(class_id);
 CREATE INDEX idx_class_diary_date     ON class_diary(date);
 
+-- ============================================================
+-- TABLE 12: quizzes
+-- ============================================================
+CREATE TABLE IF NOT EXISTS quizzes (
+    id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title            VARCHAR(255) NOT NULL,
+    description      TEXT,
+    subject          VARCHAR(100) NOT NULL,
+    class_id         UUID REFERENCES classes(id) ON DELETE CASCADE,
+    teacher_id       UUID REFERENCES teachers(id) ON DELETE SET NULL,
+    duration_minutes INTEGER NOT NULL DEFAULT 15,
+    total_marks      INTEGER NOT NULL DEFAULT 10,
+    questions_json   TEXT NOT NULL,
+    is_active        BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_quizzes_class_id   ON quizzes(class_id);
+CREATE INDEX idx_quizzes_teacher_id ON quizzes(teacher_id);
+
+-- ============================================================
+-- TABLE 13: quiz_submissions
+-- ============================================================
+CREATE TABLE IF NOT EXISTS quiz_submissions (
+    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    quiz_id             UUID NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+    student_id          UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    score               INTEGER NOT NULL,
+    total_marks         INTEGER NOT NULL,
+    answers_json        TEXT NOT NULL,
+    time_spent_seconds  INTEGER NOT NULL DEFAULT 0,
+    submitted_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(quiz_id, student_id)
+);
+
+CREATE INDEX idx_quiz_submissions_quiz    ON quiz_submissions(quiz_id);
+CREATE INDEX idx_quiz_submissions_student ON quiz_submissions(student_id);
+
+-- ============================================================
+-- TABLE 14: leave_requests
+-- ============================================================
+CREATE TABLE IF NOT EXISTS leave_requests (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    applicant_type  VARCHAR(20) NOT NULL CHECK(applicant_type IN ('student', 'teacher')),
+    student_id      UUID REFERENCES students(id) ON DELETE CASCADE,
+    teacher_id      UUID REFERENCES teachers(id) ON DELETE CASCADE,
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    leave_type      VARCHAR(50) NOT NULL CHECK(leave_type IN ('Sick', 'Casual', 'Emergency', 'Vacation', 'Other')),
+    from_date       DATE NOT NULL,
+    to_date         DATE NOT NULL,
+    reason          TEXT NOT NULL,
+    status          VARCHAR(20) NOT NULL DEFAULT 'Pending' CHECK(status IN ('Pending', 'Approved', 'Rejected')),
+    reviewed_by     UUID REFERENCES users(id) ON DELETE SET NULL,
+    review_remarks  TEXT,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_leave_student_id ON leave_requests(student_id);
+CREATE INDEX idx_leave_teacher_id ON leave_requests(teacher_id);
+CREATE INDEX idx_leave_status     ON leave_requests(status);
+
+
 
 
 -- ============================================================

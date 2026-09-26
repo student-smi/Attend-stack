@@ -64,6 +64,42 @@ export default function StudentDashboard() {
           icon="🎓" gradient="bg-gradient-to-br from-amber-500 to-orange-600" />
       </div>
 
+      {/* 🚀 Quick Actions: Live MCQ Quiz & Leave Application */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <a
+          href="/student/quizzes"
+          className="p-5 rounded-3xl bg-gradient-to-r from-purple-900 to-indigo-900 text-white flex items-center justify-between shadow-lg shadow-purple-900/20 hover:scale-[1.01] transition-all group"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-2xl group-hover:rotate-12 transition-transform">
+              ⏱️
+            </div>
+            <div>
+              <h3 className="font-bold text-base">Live Online MCQ Quizzes</h3>
+              <p className="text-xs text-purple-200">Attempt speed tests with live countdown timers & instant results</p>
+            </div>
+          </div>
+          <span className="text-lg font-bold">➔</span>
+        </a>
+
+        <a
+          href="/student/leaves"
+          className="p-5 rounded-3xl bg-gradient-to-r from-teal-900 to-emerald-900 text-white flex items-center justify-between shadow-lg shadow-teal-900/20 hover:scale-[1.01] transition-all group"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-2xl group-hover:rotate-12 transition-transform">
+              📝
+            </div>
+            <div>
+              <h3 className="font-bold text-base">Apply for Leave (छुट्टी)</h3>
+              <p className="text-xs text-teal-200">Submit leave dates & track approval status in real-time</p>
+            </div>
+          </div>
+          <span className="text-lg font-bold">➔</span>
+        </a>
+      </div>
+
+
       {/* 📖 Daily Homework & Class Diary (Aaj Kya Padhaya) */}
       <div className="card p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-indigo-50/50 via-white to-white border border-indigo-100 shadow-sm space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-indigo-100/60">
