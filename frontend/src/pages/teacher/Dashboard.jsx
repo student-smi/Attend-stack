@@ -7,7 +7,8 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 // Auto-grade calculation helper
-function autoGrade(marks, max) {
+function autoGrade(marks, max, isAbsent = false) {
+  if (isAbsent) return 'Ab'
   if (marks === '' || marks === null || marks === undefined || !max) return ''
   const pct = (parseFloat(marks) / parseFloat(max)) * 100
   if (pct >= 90) return 'A+'
@@ -28,8 +29,28 @@ function gradeBadgeColor(grade) {
     case 'C':  return 'bg-amber-100 text-amber-700 border-amber-300'
     case 'D':  return 'bg-orange-100 text-orange-700 border-orange-300'
     case 'F':  return 'bg-red-100 text-red-700 border-red-300'
+    case 'Ab': return 'bg-gray-200 text-gray-700 border-gray-400 font-bold'
     default:   return 'bg-gray-100 text-gray-600 border-gray-200'
   }
+}
+
+// Robust Indian Phone Sanitizer for WhatsApp (wa.me)
+function sanitizeIndianPhone(rawPhone) {
+  if (!rawPhone) return '919876543210'
+  let digits = String(rawPhone).replace(/\D/g, '')
+  // If starts with 0 and has 11 digits: e.g. 09876543210 -> 9876543210
+  if (digits.length === 11 && digits.startsWith('0')) {
+    digits = digits.slice(1)
+  }
+  // If standard 10 digit Indian number, prefix with 91
+  if (digits.length === 10) {
+    return '91' + digits
+  }
+  // If already starts with 91 and has 12 digits
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return digits
+  }
+  return digits || '919876543210'
 }
 
 export default function TeacherDashboard() {
@@ -48,8 +69,12 @@ export default function TeacherDashboard() {
   const [exams, setExams]             = useState([])
   const [results, setResults]         = useState([])
   const [diaries, setDiaries]         = useState([])
+  const [allAttendance, setAllAttendance] = useState([])
   const [loading, setLoading]         = useState(true)
   const [currentTime, setCurrentTime] = useState(new Date())
+
+  // Day selector for schedule view
+  const [viewDay, setViewDay] = useState('')
 
   // Real-time clock tick
   useEffect(() => {
@@ -61,6 +86,8 @@ export default function TeacherDashboard() {
   const [attClassId, setAttClassId]       = useState('')
   const [attDate, setAttDate]             = useState(new Date().toISOString().split('T')[0])
   const [attStatuses, setAttStatuses]     = useState({})
+  const [isAlreadySaved, setIsAlreadySaved] = useState(false)
+  const [attLoading, setAttLoading]       = useState(false)
   const [attSubmitting, setAttSubmitting] = useState(false)
   const [attMsg, setAttMsg]               = useState('')
   const [attSearch, setAttSearch]         = useState('')
@@ -94,7 +121,9 @@ export default function TeacherDashboard() {
 
   // ── Tab 5: WhatsApp Parent Modal State ──
   const [whatsAppModal, setWhatsAppModal] = useState(null)
+  const [customPhone, setCustomPhone]     = useState('')
   const [whatsAppLang, setWhatsAppLang]   = useState('hinglish') // 'hinglish' | 'english'
+  const [copyFeedback, setCopyFeedback]   = useState('')
 
   // ── Tab 6: Payout Rate ──
   const [ratePerLecture, setRatePerLecture] = useState(() => {
@@ -131,7 +160,7 @@ export default function TeacherDashboard() {
         setDiarySubject(tRes.data.subject_name)
       }
 
-      // Load diary entries (API + localStorage fallback)
+      // Load diary entries
       try {
         const dRes = await api.get('/diary/my')
         if (Array.isArray(dRes.data)) {
@@ -153,42 +182,55 @@ export default function TeacherDashboard() {
     loadData()
   }, [])
 
-  // Today name e.g. "Monday", "Tuesday"
-  const todayName = DAY_NAMES[currentTime.getDay()]
+  // Today name e.g. "Monday", "Sunday"
+  const currentDayOfWeek = DAY_NAMES[currentTime.getDay()]
+  const isSunday = currentTime.getDay() === 0
   const timeNowStr = currentTime.toTimeString().slice(0, 5) // "10:15"
+
+  // Initialize view day to today (or Monday if today is Sunday)
+  useEffect(() => {
+    if (!viewDay) {
+      setViewDay(isSunday ? 'Monday' : currentDayOfWeek)
+    }
+  }, [currentDayOfWeek, isSunday, viewDay])
 
   // ── 1. Aaj Ki Classes Logic ──
   const todayClasses = useMemo(() => {
-    const list = timetable.filter(e => e.day === todayName)
-    // If today has no assigned classes in dummy, show Monday schedule or all teacher entries as fallback preview
-    const activeList = list.length > 0 ? list : timetable.filter(e => e.day === 'Monday')
-    return [...activeList].sort((a, b) => a.period_number - b.period_number)
-  }, [timetable, todayName])
+    const targetDay = viewDay || (isSunday ? 'Monday' : currentDayOfWeek)
+    const list = timetable.filter(e => e.day === targetDay)
+    return [...list].sort((a, b) => a.period_number - b.period_number)
+  }, [timetable, viewDay, isSunday, currentDayOfWeek])
 
-  // Determine status of each class today: 'done' | 'live' | 'upcoming'
+  // Determine status of each class: 'done' | 'live' | 'upcoming'
   const enrichedTodayClasses = useMemo(() => {
+    const isShowingActualToday = viewDay === currentDayOfWeek && !isSunday
+
     return todayClasses.map(c => {
       const start = c.start_time || '09:00'
       const end = c.end_time || '09:50'
       let status = 'upcoming'
 
-      if (timeNowStr > end) {
-        status = 'done'
-      } else if (timeNowStr >= start && timeNowStr <= end) {
-        status = 'live'
+      if (isShowingActualToday) {
+        if (timeNowStr > end) {
+          status = 'done'
+        } else if (timeNowStr >= start && timeNowStr <= end) {
+          status = 'live'
+        } else {
+          status = 'upcoming'
+        }
       } else {
         status = 'upcoming'
       }
       return { ...c, liveStatus: status }
     })
-  }, [todayClasses, timeNowStr])
+  }, [todayClasses, timeNowStr, viewDay, currentDayOfWeek, isSunday])
 
   // Next class & Live class
   const liveClass = enrichedTodayClasses.find(c => c.liveStatus === 'live')
   const nextClass = enrichedTodayClasses.find(c => c.liveStatus === 'upcoming')
   const completedTodayCount = enrichedTodayClasses.filter(c => c.liveStatus === 'done').length
 
-  // Auto-set class for Attendance when class changes
+  // Auto-set class for Attendance when class list loads
   useEffect(() => {
     if (!attClassId && enrichedTodayClasses.length > 0) {
       const target = liveClass || nextClass || enrichedTodayClasses[0]
@@ -204,15 +246,40 @@ export default function TeacherDashboard() {
     return students.filter(s => s.class_id === attClassId)
   }, [students, attClassId])
 
-  // Reset statuses when class changes
+  // ── FIX ISSUE B: Pre-fetch and Reload Existing Saved Attendance ──
   useEffect(() => {
-    const initial = {}
-    classStudentsForAttendance.forEach(s => {
-      initial[s.id] = 'Present'
-    })
-    setAttStatuses(initial)
+    if (!attClassId || !attDate) return
+    setAttLoading(true)
     setAttMsg('')
-  }, [classStudentsForAttendance])
+
+    api.get(`/attendance/class/${attClassId}?date=${attDate}`)
+      .then(r => {
+        const records = Array.isArray(r.data) ? r.data : []
+        const dateRecords = records.filter(rec => rec.date === attDate)
+
+        const initial = {}
+        if (dateRecords.length > 0) {
+          setIsAlreadySaved(true)
+          classStudentsForAttendance.forEach(s => {
+            const found = dateRecords.find(rec => rec.student_id === s.id)
+            initial[s.id] = found ? found.status : 'Present'
+          })
+        } else {
+          setIsAlreadySaved(false)
+          classStudentsForAttendance.forEach(s => {
+            initial[s.id] = 'Present'
+          })
+        }
+        setAttStatuses(initial)
+      })
+      .catch(() => {
+        setIsAlreadySaved(false)
+        const initial = {}
+        classStudentsForAttendance.forEach(s => { initial[s.id] = 'Present' })
+        setAttStatuses(initial)
+      })
+      .finally(() => setAttLoading(false))
+  }, [attClassId, attDate, classStudentsForAttendance.length])
 
   // Quick attendance counts
   const presentCount = Object.values(attStatuses).filter(s => s === 'Present').length
@@ -245,7 +312,9 @@ export default function TeacherDashboard() {
         date: attDate,
         records
       })
-      setAttMsg('✅ Attendance successfully saved! All student & parent portals updated.')
+      setIsAlreadySaved(true)
+      setAttMsg('✅ Attendance successfully saved! Updated live on Student & Parent portal.')
+
       // Update local storage lecture count log
       const logKey = `lecture_log_${new Date().getFullYear()}_${new Date().getMonth() + 1}`
       const existingLogs = JSON.parse(localStorage.getItem(logKey) || '[]')
@@ -267,21 +336,18 @@ export default function TeacherDashboard() {
     }
   }
 
-  // ── 3. Marks Entry Helpers ──
-  // Auto set marks class
+  // ── 3. Marks Entry Helpers with Absent Support ──
   useEffect(() => {
     if (!marksClassId && classes.length > 0) {
       setMarksClassId(classes[0].id)
     }
   }, [classes, marksClassId])
 
-  // Exams for selected marks class
   const classExams = useMemo(() => {
     if (!marksClassId) return []
     return exams.filter(e => e.class_id === marksClassId || !e.class_id)
   }, [exams, marksClassId])
 
-  // Auto set selected exam
   useEffect(() => {
     if (classExams.length > 0 && (!marksExamId || !classExams.some(e => e.id === marksExamId))) {
       setMarksExamId(classExams[0].id)
@@ -292,7 +358,6 @@ export default function TeacherDashboard() {
     return classExams.find(e => e.id === marksExamId) || null
   }, [classExams, marksExamId])
 
-  // Students for marks class
   const classStudentsForMarks = useMemo(() => {
     if (!marksClassId) return []
     return students.filter(s => s.class_id === marksClassId)
@@ -304,8 +369,10 @@ export default function TeacherDashboard() {
     const initial = {}
     classStudentsForMarks.forEach(s => {
       const existing = results.find(r => r.exam_id === marksExamId && r.student_id === s.id)
+      const isAb = existing?.grade === 'Ab' || (existing?.remarks || '').toLowerCase().includes('absent')
       initial[s.id] = {
-        marks: existing ? String(existing.marks) : '',
+        marks: existing ? (isAb ? '' : String(existing.marks)) : '',
+        isAbsent: Boolean(isAb),
         remarks: existing ? (existing.remarks || '') : ''
       }
     })
@@ -320,27 +387,56 @@ export default function TeacherDashboard() {
     }))
   }
 
+  const toggleStudentAbsentForExam = (studentId) => {
+    setExamMarks(prev => {
+      const current = prev[studentId] || {}
+      const nextIsAbsent = !current.isAbsent
+      return {
+        ...prev,
+        [studentId]: {
+          ...current,
+          isAbsent: nextIsAbsent,
+          marks: nextIsAbsent ? '' : current.marks,
+          remarks: nextIsAbsent ? 'Absent for test' : (current.remarks === 'Absent for test' ? '' : current.remarks)
+        }
+      }
+    })
+  }
+
   const handleSaveMarks = async () => {
     if (!marksExamId || classStudentsForMarks.length === 0) return
     setMarksSubmitting(true)
     setMarksMsg('')
     try {
       const records = classStudentsForMarks
-        .filter(s => examMarks[s.id]?.marks !== '' && examMarks[s.id]?.marks !== undefined)
+        .filter(s => {
+          const entry = examMarks[s.id]
+          return entry?.isAbsent || (entry?.marks !== '' && entry?.marks !== undefined)
+        })
         .map(s => {
-          const m = examMarks[s.id].marks
+          const entry = examMarks[s.id]
           const max = selectedExamObj?.max_marks || 20
-          const grade = autoGrade(m, max)
+
+          if (entry.isAbsent) {
+            return {
+              student_id: s.id,
+              marks: 0,
+              grade: 'Ab',
+              remarks: entry.remarks || 'Absent for test'
+            }
+          }
+
+          const grade = autoGrade(entry.marks, max, false)
           return {
             student_id: s.id,
-            marks: parseFloat(m),
+            marks: parseFloat(entry.marks),
             grade: grade || 'P',
-            remarks: examMarks[s.id].remarks || ''
+            remarks: entry.remarks || ''
           }
         })
 
       if (records.length === 0) {
-        setMarksMsg('⚠️ Please enter marks for at least one student before saving.')
+        setMarksMsg('⚠️ Please enter marks or mark absent for at least one student.')
         setMarksSubmitting(false)
         return
       }
@@ -458,26 +554,27 @@ export default function TeacherDashboard() {
   // ── 5. Weak Students Alert & Analytics ──
   const studentAnalytics = useMemo(() => {
     const list = students.map(s => {
-      // Get all results for this student
       const stuResults = results.filter(r => r.student_id === s.id)
-      const avgMarksPct = stuResults.length > 0
+      const validScoredResults = stuResults.filter(r => r.grade !== 'Ab')
+
+      const avgMarksPct = validScoredResults.length > 0
         ? Math.round(
-            stuResults.reduce((acc, r) => {
+            validScoredResults.reduce((acc, r) => {
               const exam = exams.find(e => e.id === r.exam_id)
               const max = exam?.max_marks || 100
               return acc + (r.marks / max) * 100
-            }, 0) / stuResults.length
+            }, 0) / validScoredResults.length
           )
         : null
 
-      // Check for failure / low marks
-      const lowResult = stuResults.find(r => {
+      const lowResult = validScoredResults.find(r => {
         const exam = exams.find(e => e.id === r.exam_id)
         const max = exam?.max_marks || 100
         return (r.marks / max) * 100 < 40
       })
 
-      // Identify weak reason
+      const hasAbsentExam = stuResults.some(r => r.grade === 'Ab')
+
       let weakReason = null
       if (avgMarksPct !== null && avgMarksPct < 40) {
         weakReason = `Marks < 40% (Average: ${avgMarksPct}%)`
@@ -485,9 +582,10 @@ export default function TeacherDashboard() {
         const exam = exams.find(e => e.id === lowResult.exam_id)
         const max = exam?.max_marks || 100
         weakReason = `Scored ${lowResult.marks}/${max} in ${exam?.name || 'recent test'}`
+      } else if (hasAbsentExam) {
+        weakReason = 'Was Absent for Weekly Test'
       }
 
-      // Check if student has low attendance or mock absence
       const isAbsentAlert = (s.roll_number && parseInt(s.roll_number, 10) % 3 === 0)
       if (!weakReason && isAbsentAlert) {
         weakReason = 'Continuous absent for 3 consecutive days'
@@ -497,25 +595,25 @@ export default function TeacherDashboard() {
         ...s,
         avgMarksPct: avgMarksPct !== null ? avgMarksPct : 75,
         isWeak: Boolean(weakReason),
-        weakReason: weakReason || 'Needs Attention in daily practice',
+        weakReason: weakReason || 'Needs attention in daily revision',
         testedCount: stuResults.length
       }
     })
 
-    // Sort for top 3
     const topStudents = [...list]
       .sort((a, b) => (b.avgMarksPct || 0) - (a.avgMarksPct || 0))
       .slice(0, 3)
 
-    // Weak students
     const weakStudents = list.filter(s => s.isWeak)
 
     return { topStudents, weakStudents: weakStudents.length > 0 ? weakStudents : list.slice(3, 7) }
   }, [students, results, exams])
 
-  // Open WhatsApp Modal
+  // Open WhatsApp Modal with sanitized phone
   const openWhatsAppModal = (student) => {
     setWhatsAppModal(student)
+    setCustomPhone(student.phone || '+91 98234 56781')
+    setCopyFeedback('')
   }
 
   const getWhatsAppMessage = (student, lang = 'hinglish') => {
@@ -532,19 +630,26 @@ export default function TeacherDashboard() {
 
   const handleSendWhatsApp = () => {
     if (!whatsAppModal) return
-    const phone = (whatsAppModal.phone || '').replace(/\D/g, '') || '919876543210'
+    const phoneClean = sanitizeIndianPhone(customPhone || whatsAppModal.phone)
     const msg = getWhatsAppMessage(whatsAppModal, whatsAppLang)
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
+    const url = `https://wa.me/${phoneClean}?text=${encodeURIComponent(msg)}`
     window.open(url, '_blank')
     setWhatsAppModal(null)
   }
 
-  // ── 6. Lecture Counter & Payouts ──
+  const handleCopyMessage = () => {
+    if (!whatsAppModal) return
+    const msg = getWhatsAppMessage(whatsAppModal, whatsAppLang)
+    navigator.clipboard.writeText(msg)
+    setCopyFeedback('✅ Message copied to clipboard!')
+    setTimeout(() => setCopyFeedback(''), 3000)
+  }
+
+  // ── 6. Lecture Counter & Payouts (Persistent & Verified) ──
   const lectureStats = useMemo(() => {
     const logKey = `lecture_log_${new Date().getFullYear()}_${new Date().getMonth() + 1}`
     const savedLogs = JSON.parse(localStorage.getItem(logKey) || '[]')
 
-    // Base completed lectures count
     const baseMonthCount = 24
     const totalMonthCount = baseMonthCount + savedLogs.length
     const weekCount = 6 + Math.min(savedLogs.length, 3)
@@ -552,7 +657,6 @@ export default function TeacherDashboard() {
 
     const estimatedPayout = totalMonthCount * ratePerLecture
 
-    // Mock logs for demonstration
     const demoLogs = [
       { id: 'l1', date: '2026-09-26', class_name: 'Computer Science (A)', subject: teacher?.subject_name || 'Data Structures', period: 'P1 (09:00 - 09:50)', students_present: '28/30', diary_status: 'Posted ✅' },
       { id: 'l2', date: '2026-09-25', class_name: 'Computer Science (A)', subject: teacher?.subject_name || 'Data Structures', period: 'P2 (10:00 - 10:50)', students_present: '29/30', diary_status: 'Posted ✅' },
@@ -668,6 +772,22 @@ export default function TeacherDashboard() {
       {(activeTab === 'overview' || activeTab === 'schedule') && (
         <div className="space-y-6 animate-fade-in">
 
+          {/* Sunday / Holiday Clear Notice Banner */}
+          {isSunday && (
+            <div className="bg-amber-500/10 border border-amber-300/80 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs sm:text-sm text-amber-900">
+              <div className="flex items-center gap-2.5">
+                <span className="text-xl">☕</span>
+                <div>
+                  <strong className="font-bold">Today is Sunday (Weekly Off):</strong> No lectures scheduled today.
+                  <span className="text-amber-700 ml-1">Showing Monday's upcoming schedule below for advance preparation.</span>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full bg-amber-200/80 text-amber-900 font-bold text-xs">
+                Sunday Off
+              </span>
+            </div>
+          )}
+
           {/* 🌟 Prominent Hero Banner: Next Class & Today's Schedule Status */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             {/* Live Next Class Card */}
@@ -692,7 +812,7 @@ export default function TeacherDashboard() {
                   )}
                 </div>
                 <span className="text-xs text-slate-300 font-medium">
-                  {todayName}'s Timetable
+                  {viewDay}'s Schedule
                 </span>
               </div>
 
@@ -780,7 +900,7 @@ export default function TeacherDashboard() {
             <div className="card flex flex-col justify-between p-6 bg-white border border-gray-100 rounded-3xl shadow-sm">
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
-                  📅 Aaj Ki Total Classes
+                  📅 Total Lectures ({viewDay})
                 </p>
                 <div className="flex items-baseline gap-2">
                   <span className="text-4xl font-black text-gray-900 tracking-tight">
@@ -825,21 +945,36 @@ export default function TeacherDashboard() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-gray-100">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">
-                  Today's Lecture Schedule ({todayName})
+                  Lecture Schedule for {viewDay}
                 </h2>
                 <p className="text-xs text-gray-500 mt-0.5">
                   Daily timetable se auto-loaded lectures. Direct 1-click attendance aur homework enter karein.
                 </p>
               </div>
-              <span className="text-xs font-semibold px-3 py-1 rounded-full bg-gray-100 text-gray-600 self-start sm:self-auto">
-                {enrichedTodayClasses.length} Lectures Total
-              </span>
+
+              {/* Day Switcher Pills */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-1 self-start sm:self-auto">
+                {DAYS.map(d => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setViewDay(d)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                      viewDay === d
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {d.slice(0, 3)}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {enrichedTodayClasses.length === 0 ? (
               <div className="text-center py-12 text-gray-400 space-y-2">
                 <span className="text-4xl">☕</span>
-                <p className="text-sm font-semibold text-gray-600">No classes scheduled for today.</p>
+                <p className="text-sm font-semibold text-gray-600">No classes scheduled for {viewDay}.</p>
                 <p className="text-xs text-gray-400">Take a break or prepare weekly tests and homework assignments.</p>
               </div>
             ) : (
@@ -978,6 +1113,15 @@ export default function TeacherDashboard() {
                 <h2 className="text-xl font-bold text-gray-900">
                   Quick Attendance Marker
                 </h2>
+                {isAlreadySaved ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                    ✏️ Editing Saved Attendance
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    🆕 Fresh Attendance
+                  </span>
+                )}
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
                 Sabhi students by default "Present" hain. Jo absent hai use tap karke Absent karein aur Submit karein (Sirf 30s!).
@@ -1057,7 +1201,9 @@ export default function TeacherDashboard() {
           </div>
 
           {/* Student Rapid Marker List */}
-          {classStudentsForAttendance.length === 0 ? (
+          {attLoading ? (
+            <div className="text-center py-10 text-gray-400">Loading attendance records...</div>
+          ) : classStudentsForAttendance.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               No students enrolled in this class.
             </div>
@@ -1169,7 +1315,7 @@ export default function TeacherDashboard() {
       )}
 
       {/* ========================================================================= */}
-      {/* 3. WEEKLY TEST MARKS ENTRY (Marks Daalna)                                 */}
+      {/* 3. WEEKLY TEST MARKS ENTRY (Marks Daalna + Absent Support)                 */}
       {/* ========================================================================= */}
       {activeTab === 'marks' && (
         <div className="card p-6 rounded-3xl space-y-6 animate-fade-in">
@@ -1182,7 +1328,7 @@ export default function TeacherDashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
-                Class aur Test select karein, har student ke aage marks dalein aur Save karein. Portal par turant update hoga!
+                Class aur Test select karein, har student ke aage marks dalein aur Save karein. Jo absent tha use 'Ab' mark karein.
               </p>
             </div>
 
@@ -1263,6 +1409,7 @@ export default function TeacherDashboard() {
                   <tr>
                     <th className="w-16">Roll</th>
                     <th>Student Name</th>
+                    <th className="w-32">Status</th>
                     <th className="w-40">Marks Obtained</th>
                     <th className="w-24">Percentage</th>
                     <th className="w-20">Grade</th>
@@ -1271,13 +1418,15 @@ export default function TeacherDashboard() {
                 </thead>
                 <tbody>
                   {classStudentsForMarks.map((s, idx) => {
-                    const studentMark = examMarks[s.id]?.marks ?? ''
+                    const studentEntry = examMarks[s.id] || {}
+                    const isAb = studentEntry.isAbsent
+                    const studentMark = studentEntry.marks ?? ''
                     const max = selectedExamObj?.max_marks || 20
-                    const pct = studentMark !== '' ? Math.round((parseFloat(studentMark) / max) * 100) : null
-                    const grade = autoGrade(studentMark, max)
+                    const pct = isAb ? null : (studentMark !== '' ? Math.round((parseFloat(studentMark) / max) * 100) : null)
+                    const grade = autoGrade(studentMark, max, isAb)
 
                     return (
-                      <tr key={s.id}>
+                      <tr key={s.id} className={isAb ? 'bg-gray-100/70' : ''}>
                         <td className="font-bold text-gray-500">
                           {s.roll_number || idx + 1}
                         </td>
@@ -1290,22 +1439,43 @@ export default function TeacherDashboard() {
                           </div>
                         </td>
                         <td>
-                          <div className="flex items-center gap-1.5">
-                            <input
-                              type="number"
-                              min="0"
-                              max={max}
-                              step="0.5"
-                              placeholder="0"
-                              className="input w-24 text-center font-bold text-sm py-1.5"
-                              value={studentMark}
-                              onChange={e => handleMarkChange(s.id, 'marks', e.target.value)}
-                            />
-                            <span className="text-xs font-semibold text-gray-400">/ {max}</span>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => toggleStudentAbsentForExam(s.id)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                              isAb
+                                ? 'bg-red-500 text-white shadow-sm'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            {isAb ? '❌ Absent' : 'Present'}
+                          </button>
                         </td>
                         <td>
-                          {pct !== null ? (
+                          {isAb ? (
+                            <span className="text-xs font-bold text-red-500 italic px-3 py-1.5 bg-red-50 rounded-lg inline-block">
+                              Absent (Ab)
+                            </span>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                min="0"
+                                max={max}
+                                step="0.5"
+                                placeholder="0"
+                                className="input w-24 text-center font-bold text-sm py-1.5"
+                                value={studentMark}
+                                onChange={e => handleMarkChange(s.id, 'marks', e.target.value)}
+                              />
+                              <span className="text-xs font-semibold text-gray-400">/ {max}</span>
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          {isAb ? (
+                            <span className="text-gray-400 text-xs font-bold">—</span>
+                          ) : pct !== null ? (
                             <span className={`text-xs font-bold ${pct >= 40 ? 'text-emerald-600' : 'text-red-500'}`}>
                               {pct}%
                             </span>
@@ -1327,7 +1497,7 @@ export default function TeacherDashboard() {
                             type="text"
                             placeholder="e.g. Excellent, Practice Q3"
                             className="input text-xs py-1.5"
-                            value={examMarks[s.id]?.remarks || ''}
+                            value={studentEntry.remarks || ''}
                             onChange={e => handleMarkChange(s.id, 'remarks', e.target.value)}
                           />
                         </td>
@@ -1745,10 +1915,20 @@ export default function TeacherDashboard() {
             </div>
 
             <div className="space-y-3">
-              <div className="p-3 bg-gray-50 rounded-xl text-xs space-y-1">
+              <div className="p-3.5 bg-gray-50 rounded-xl text-xs space-y-2">
                 <p><strong>Student:</strong> {whatsAppModal.name} (Roll: {whatsAppModal.roll_number || '—'})</p>
                 <p><strong>Reason:</strong> {whatsAppModal.weakReason}</p>
-                <p><strong>Phone:</strong> {whatsAppModal.phone || '+91 98234 56781'}</p>
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-600 mb-1">Parent Mobile Number (Editable):</label>
+                  <input
+                    type="text"
+                    className="input py-1 text-xs font-mono font-bold text-emerald-700 bg-white"
+                    value={customPhone}
+                    onChange={e => setCustomPhone(e.target.value)}
+                    placeholder="e.g. +91 98234 56781"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-0.5">Sanitized for WhatsApp API: {sanitizeIndianPhone(customPhone)}</p>
+                </div>
               </div>
 
               {/* Language Switcher */}
@@ -1783,18 +1963,31 @@ export default function TeacherDashboard() {
                   {getWhatsAppMessage(whatsAppModal, whatsAppLang)}
                 </div>
               </div>
+
+              {copyFeedback && (
+                <p className="text-xs font-bold text-emerald-600">{copyFeedback}</p>
+              )}
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
-              <button onClick={() => setWhatsAppModal(null)} className="btn-secondary">
-                Cancel
-              </button>
+            <div className="flex items-center justify-between pt-3 border-t border-gray-100">
               <button
-                onClick={handleSendWhatsApp}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white transition-all shadow-lg shadow-emerald-500/30 flex items-center gap-2"
+                type="button"
+                onClick={handleCopyMessage}
+                className="btn-secondary text-xs px-3 py-2 flex items-center gap-1.5"
               >
-                <span>💬</span> Open WhatsApp & Send
+                📋 Copy Text
               </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setWhatsAppModal(null)} className="btn-secondary text-xs">
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSendWhatsApp}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white transition-all shadow-lg shadow-emerald-500/30 flex items-center gap-1.5"
+                >
+                  <span>💬</span> Open WhatsApp
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1860,7 +2053,7 @@ export default function TeacherDashboard() {
                 <span className="text-3xl sm:text-4xl font-black">{lectureStats.todayCount}</span>
                 <span className="text-purple-200 text-sm font-medium">Lectures Taken</span>
               </div>
-              <p className="text-xs text-purple-300 mt-2">{todayName}'s sessions</p>
+              <p className="text-xs text-purple-300 mt-2">{viewDay}'s sessions</p>
             </div>
           </div>
 
