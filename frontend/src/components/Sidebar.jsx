@@ -30,13 +30,13 @@ const studentLinks = [
 
 const teacherLinks = [
   { to: '/teacher',                  label: 'Dashboard',         icon: '🏠' },
-  { to: '/teacher?tab=schedule',    label: 'Aaj Ki Classes',    icon: '📅' },
+  { to: '/teacher?tab=schedule',    label: "Today's Schedule",  icon: '📅' },
   { to: '/teacher?tab=attendance',  label: 'Take Attendance',   icon: '📝' },
   { to: '/teacher?tab=marks',       label: 'Test Marks Entry',  icon: '🎯' },
   { to: '/teacher?tab=diary',       label: 'Daily Homework',    icon: '📖' },
   { to: '/teacher?tab=quizzes',     label: 'Online Quizzes',    icon: '⏱️' },
   { to: '/teacher?tab=leaves',      label: 'Leave Requests',    icon: '📬' },
-  { to: '/teacher?tab=alerts',      label: 'Weak Students',     icon: '⚠️' },
+  { to: '/teacher?tab=alerts',      label: 'Student Alerts',    icon: '⚠️' },
   { to: '/teacher?tab=payouts',     label: 'Lecture Counter',   icon: '💼' },
   { to: '/teacher/timetable',       label: 'Full Timetable',    icon: '🗓️' },
 ]

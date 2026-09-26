@@ -88,12 +88,12 @@ export default function StudentLeaves() {
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-teal-200 text-xs font-semibold mb-3 border border-white/10">
-              <span>📝 Chhutti Application</span>
+              <span>📝 Leave Application</span>
               <span>•</span>
-              <span>1-Tap Digital Leave Approval</span>
+              <span>Online Digital Leave Request & Approval</span>
             </div>
             <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight">
-              Leave Application Portal (छुट्टी की अर्जी)
+              Leave Application Portal
             </h1>
             <p className="text-slate-300 text-sm md:text-base mt-2 max-w-xl">
               Apply for leave directly online with dates and reason. Track approval status in real-time.
@@ -255,7 +255,7 @@ export default function StudentLeaves() {
 
               <div>
                 <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
-                  Reason for Leave (कारण)
+                  Reason for Leave
                 </label>
                 <textarea
                   rows={4}

@@ -91,7 +91,7 @@ export default function StudentDashboard() {
               📝
             </div>
             <div>
-              <h3 className="font-bold text-base">Apply for Leave (छुट्टी)</h3>
+              <h3 className="font-bold text-base">Apply for Leave</h3>
               <p className="text-xs text-teal-200">Submit leave dates & track approval status in real-time</p>
             </div>
           </div>
@@ -100,17 +100,17 @@ export default function StudentDashboard() {
       </div>
 
 
-      {/* 📖 Daily Homework & Class Diary (Aaj Kya Padhaya) */}
+      {/* 📖 Daily Homework & Class Diary */}
       <div className="card p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-indigo-50/50 via-white to-white border border-indigo-100 shadow-sm space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-indigo-100/60">
           <div className="flex items-center gap-2.5">
             <span className="text-2xl">📖</span>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-gray-900">
-                Daily Homework & Class Diary (आज क्या पढ़ाया)
+                Daily Homework & Class Diary
               </h2>
               <p className="text-xs text-gray-500">
-                Teacher dwara post kiya gaya latest class work aur homework.
+                Latest classwork, topics covered, and assignments posted by your teachers.
               </p>
             </div>
           </div>

@@ -87,7 +87,7 @@ export default function AdminLeaves() {
               <span>Student & Teacher Leave Approvals</span>
             </div>
             <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight">
-              Leave Requests & Approvals (छुट्टी की अर्जियां)
+              Leave Requests & Approvals
             </h1>
             <p className="text-slate-300 text-sm md:text-base mt-2 max-w-xl">
               Review, approve, or reject student and teacher leave applications with 1-click status updates and remarks.
@@ -304,7 +304,7 @@ export default function AdminLeaves() {
 
               <div>
                 <label className="block text-xs font-bold uppercase text-slate-500 mb-1">
-                  Remarks / Notes for Applicant (कारण या निर्देश)
+                  Remarks / Notes for Applicant
                 </label>
                 <textarea
                   rows={3}

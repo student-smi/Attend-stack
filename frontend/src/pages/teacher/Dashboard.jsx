@@ -122,7 +122,7 @@ export default function TeacherDashboard() {
   // ── Tab 5: WhatsApp Parent Modal State ──
   const [whatsAppModal, setWhatsAppModal] = useState(null)
   const [customPhone, setCustomPhone]     = useState('')
-  const [whatsAppLang, setWhatsAppLang]   = useState('hinglish') // 'hinglish' | 'english'
+  const [whatsAppLang, setWhatsAppLang]   = useState('english') // 'english' | 'hinglish'
   const [copyFeedback, setCopyFeedback]   = useState('')
 
   // ── Tab 6: Payout Rate ──
@@ -388,7 +388,7 @@ export default function TeacherDashboard() {
     }
   }, [currentDayOfWeek, isSunday, viewDay])
 
-  // ── 1. Aaj Ki Classes Logic ──
+  // ── 1. Today's Schedule Logic ──
   const todayClasses = useMemo(() => {
     const targetDay = viewDay || (isSunday ? 'Monday' : currentDayOfWeek)
     const list = timetable.filter(e => e.day === targetDay)
@@ -905,7 +905,7 @@ export default function TeacherDashboard() {
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-                Namaste, {teacher?.name || 'Teacher'} 👋
+                Welcome back, {teacher?.name || 'Teacher'} 👋
               </h1>
               {teacher?.subject_name && (
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary-500/20 text-primary-300 border border-primary-500/30">
@@ -935,15 +935,16 @@ export default function TeacherDashboard() {
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-gray-200">
         {[
           { id: 'overview',    label: 'Overview',            icon: '🏠' },
-          { id: 'schedule',    label: 'Aaj Ki Classes',      icon: '📅' },
+          { id: 'schedule',    label: "Today's Schedule",    icon: '📅' },
           { id: 'attendance',  label: 'Take Attendance',     icon: '📝' },
           { id: 'marks',       label: 'Test Marks Entry',    icon: '🎯' },
-          { id: 'diary',       label: 'Daily Diary & HW',    icon: '📖' },
+          { id: 'diary',       label: 'Daily Homework',      icon: '📖' },
           { id: 'quizzes',     label: 'Online Quizzes',      icon: '⏱️' },
           { id: 'leaves',      label: 'Leave Requests',      icon: '📬' },
-          { id: 'alerts',      label: 'Weak Students Alert', icon: '⚠️' },
+          { id: 'alerts',      label: 'Student Alerts',      icon: '⚠️' },
           { id: 'payouts',     label: 'Lecture Counter',     icon: '💼' },
         ].map(t => {
+
 
           const isActive = activeTab === t.id
           return (
@@ -964,7 +965,7 @@ export default function TeacherDashboard() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 1. OVERVIEW & AAJ KI CLASSES (Today's Schedule & Live Status)             */}
+      {/* 1. OVERVIEW & TODAY'S SCHEDULE (Today's Schedule & Live Status)           */}
       {/* ========================================================================= */}
       {(activeTab === 'overview' || activeTab === 'schedule') && (
         <div className="space-y-6 animate-fade-in">
@@ -1093,7 +1094,7 @@ export default function TeacherDashboard() {
               )}
             </div>
 
-            {/* Aaj Ki Total Classes Metric Card */}
+            {/* Total Classes Metric Card */}
             <div className="card flex flex-col justify-between p-6 bg-white border border-gray-100 rounded-3xl shadow-sm">
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
@@ -1145,7 +1146,7 @@ export default function TeacherDashboard() {
                   Lecture Schedule for {viewDay}
                 </h2>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Daily timetable se auto-loaded lectures. Direct 1-click attendance aur homework enter karein.
+                  Auto-scheduled lectures from your timetable. Mark attendance and post class diary in 1 click.
                 </p>
               </div>
 
@@ -1321,7 +1322,7 @@ export default function TeacherDashboard() {
                 )}
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
-                Sabhi students by default "Present" hain. Jo absent hai use tap karke Absent karein aur Submit karein (Sirf 30s!).
+                All students are defaulted to "Present". Simply tap absent students to toggle their status, then click Submit.
               </p>
             </div>
 
@@ -1525,7 +1526,7 @@ export default function TeacherDashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
-                Class aur Test select karein, har student ke aage marks dalein aur Save karein. Jo absent tha use 'Ab' mark karein.
+                Select a class and test to enter marks for each student. Mark absent students using the 'Absent' toggle.
               </p>
             </div>
 
@@ -1825,7 +1826,7 @@ export default function TeacherDashboard() {
       )}
 
       {/* ========================================================================= */}
-      {/* 4. DAILY HOMEWORK & CLASS DIARY (Aaj Kya Padhaya)                        */}
+      {/* 4. DAILY HOMEWORK & CLASS DIARY (Daily Classroom Log)                     */}
       {/* ========================================================================= */}
       {activeTab === 'diary' && (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 animate-fade-in">
@@ -1839,7 +1840,7 @@ export default function TeacherDashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
-                "Aaj tuition me kya karwaya?" Har class ke baad topics aur homework enter karein. Seedha student dashboard par dikhega!
+                Post daily class coverage and homework assignments directly to students and parents.
               </p>
             </div>
 
@@ -1873,7 +1874,7 @@ export default function TeacherDashboard() {
               {/* Topics Covered */}
               <div>
                 <label className="label flex items-center justify-between">
-                  <span>Topics Covered (Aaj Kya Padhaya):</span>
+                  <span>Topics Covered in Class:</span>
                   <span className="text-gray-400 font-normal">e.g. Chapter 3: Exercise 3.2</span>
                 </label>
                 <textarea
@@ -2134,21 +2135,21 @@ export default function TeacherDashboard() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setWhatsAppLang('hinglish')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                      whatsAppLang === 'hinglish' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    Hindi / Hinglish (Recommended)
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setWhatsAppLang('english')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                       whatsAppLang === 'english' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600'
                     }`}
                   >
-                    English
+                    English (Recommended)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWhatsAppLang('hinglish')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      whatsAppLang === 'hinglish' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600'
+                    }`}
+                  >
+                    Hindi / Hinglish
                   </button>
                 </div>
               </div>
@@ -2200,11 +2201,11 @@ export default function TeacherDashboard() {
               <div className="flex items-center gap-2">
                 <span className="text-2xl">💼</span>
                 <h2 className="text-xl font-bold text-gray-900">
-                  Teacher Lecture Counter & Coaching Payouts
+                  Teacher Lecture Counter & Payouts
                 </h2>
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
-                Coaching / tuition me per lecture hisaab. Teacher aur coaching owner dono ke paas transparent records.
+                Per-lecture compensation tracking for transparent teaching records and payroll estimation.
               </p>
             </div>
 
@@ -2257,9 +2258,9 @@ export default function TeacherDashboard() {
           {/* Rate Calculator Settings Card */}
           <div className="card p-6 rounded-3xl bg-slate-50 border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h3 className="font-bold text-gray-900 text-base">Coaching Payout Settings</h3>
+              <h3 className="font-bold text-gray-900 text-base">Lecture Compensation Rate</h3>
               <p className="text-xs text-gray-500 mt-0.5">
-                Apna per lecture remuneration rate set karein. Estimated calculation turant update ho jayega.
+                Configure your per-lecture rate. Estimated calculations update in real-time.
               </p>
             </div>
 
@@ -2280,7 +2281,7 @@ export default function TeacherDashboard() {
           <div className="card p-6 rounded-3xl space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <h3 className="font-bold text-gray-900 text-base">
-                Completed Lecture Log (This Month's Transparent Hisaab)
+                Completed Lecture Log (This Month's Verified Records)
               </h3>
               <span className="text-xs text-gray-500 font-medium">
                 Verified from Attendance & Diary Records
